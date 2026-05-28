@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build outputs (the frontend bundle + assets are regenerated from srcts/)
+r/www/
+py/www/
+
+# Local development data — per-user predictions/tracker live here
+.dev_pins/
+
+# Local Claude Code state may contain user-supplied secrets in permission entries
+.claude/
+
+# Tooling artifacts
+*.tsbuildinfo
+esbuild-meta.json
+
+# Local rsconnect deployment state
+rsconnect/
+*.dcf
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

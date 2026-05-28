@@ -1,0 +1,86 @@
+{
+  "filters": { "competitions": "WC" },
+  "competition": { "id": 2000, "code": "WC", "name": "FIFA World Cup" },
+  "matches": [
+    {
+      "id": 100001,
+      "stage": "GROUP_STAGE",
+      "group": "GROUP_A",
+      "utcDate": "2026-06-11T18:00:00Z",
+      "status": "SCHEDULED",
+      "homeTeam": { "id": 770, "name": "Mexico", "tla": "MEX", "crest": "https://crests.football-data.org/770.svg" },
+      "awayTeam": { "id": 762, "name": "United States", "tla": "USA", "crest": "https://crests.football-data.org/762.svg" },
+      "score": {
+        "winner": null,
+        "fullTime": { "home": null, "away": null },
+        "extraTime": { "home": null, "away": null },
+        "penalties": { "home": null, "away": null }
+      },
+      "lastUpdated": "2026-05-01T00:00:00Z"
+    },
+    {
+      "id": 100002,
+      "stage": "GROUP_STAGE",
+      "group": "GROUP_B",
+      "utcDate": "2026-06-12T19:00:00Z",
+      "status": "FINISHED",
+      "homeTeam": { "id": 759, "name": "Brazil", "tla": "BRA", "crest": "https://crests.football-data.org/759.svg" },
+      "awayTeam": { "id": 765, "name": "Argentina", "tla": "ARG", "crest": "https://crests.football-data.org/765.svg" },
+      "score": {
+        "winner": "HOME_TEAM",
+        "fullTime": { "home": 2, "away": 1 },
+        "extraTime": { "home": null, "away": null },
+        "penalties": { "home": null, "away": null }
+      },
+      "lastUpdated": "2026-06-12T21:00:00Z"
+    },
+    {
+      "id": 100003,
+      "stage": "GROUP_STAGE",
+      "group": "GROUP_C",
+      "utcDate": "2026-06-12T22:00:00Z",
+      "status": "FINISHED",
+      "homeTeam": { "id": 759, "name": "Spain", "tla": "ESP", "crest": "https://crests.football-data.org/759.svg" },
+      "awayTeam": { "id": 765, "name": "Germany", "tla": "GER", "crest": "https://crests.football-data.org/765.svg" },
+      "score": {
+        "winner": "DRAW",
+        "fullTime": { "home": 1, "away": 1 },
+        "extraTime": { "home": null, "away": null },
+        "penalties": { "home": null, "away": null }
+      },
+      "lastUpdated": "2026-06-12T23:50:00Z"
+    },
+    {
+      "id": 200001,
+      "stage": "QUARTER_FINALS",
+      "group": null,
+      "utcDate": "2026-07-04T20:00:00Z",
+      "status": "FINISHED",
+      "homeTeam": { "id": 759, "name": "Brazil", "tla": "BRA", "crest": "https://crests.football-data.org/759.svg" },
+      "awayTeam": { "id": 760, "name": "France", "tla": "FRA", "crest": "https://crests.football-data.org/760.svg" },
+      "score": {
+        "winner": "DRAW",
+        "fullTime": { "home": 1, "away": 1 },
+        "extraTime": { "home": 0, "away": 0 },
+        "penalties": { "home": 4, "away": 5 }
+      },
+      "lastUpdated": "2026-07-04T22:20:00Z"
+    },
+    {
+      "id": 200002,
+      "stage": "SEMI_FINALS",
+      "group": null,
+      "utcDate": "2026-07-09T20:00:00Z",
+      "status": "SCHEDULED",
+      "homeTeam": null,
+      "awayTeam": null,
+      "score": {
+        "winner": null,
+        "fullTime": { "home": null, "away": null },
+        "extraTime": { "home": null, "away": null },
+        "penalties": { "home": null, "away": null }
+      },
+      "lastUpdated": "2026-05-01T00:00:00Z"
+    }
+  ]
+}
