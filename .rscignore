@@ -1,3 +1,4 @@
+# Frontend source + build tooling — only the compiled bundle in r/www is shipped
 node_modules/
 srcts/
 build.ts
@@ -6,10 +7,35 @@ package.json
 package-lock.json
 components.json
 eslint.config.js
+pyrightconfig.json
 .prettierrc
+
+# Tests + canned API data
 tests/
+
+# Local pin board (under r/ when running from there)
 .dev_pins/
+r/.dev_pins/
+
+# Version control + editor / OS noise
 .git/
 .github/
+.gitignore
+.vscode/
+.claude/
+.DS_Store
+
+# Tooling artifacts
 *.tsbuildinfo
 esbuild-meta.json
+
+# Frontend bundle for the refresh job (not needed there; the app deploy ships its own)
+# Note: this only applies when deploying from the repo root (the refresh job).
+# The app deploy is rooted at r/ and uses r/.rscignore.
+r/www/
+
+# Docs that the refresh job doesn't need
+SHINY-REACT.md
+CLAUDE.md
+LICENSE
+README.md

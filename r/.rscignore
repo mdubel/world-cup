@@ -1,0 +1,6 @@
+# Local pin board — must never be bundled into the Connect deploy
+.dev_pins/
+
+# Editor / OS noise
+.DS_Store
+*.swp
