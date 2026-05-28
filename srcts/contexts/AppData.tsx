@@ -29,7 +29,9 @@ import type {
 interface AppData {
   fixtures: FixturesView;
   tracker: TrackerMap;
-  setTracker: (matchId: string, state: TrackerState) => void;
+  setTracker: (matchId: string, state: TrackerState | null) => void;
+  /** Match IDs with an in-flight tracker write — used to render spinners. */
+  pendingTrackerMatches: Set<string>;
   predictions: PredictionsMap;
   setPrediction: (
     matchId: string,
@@ -56,7 +58,11 @@ export function AppDataProvider({
   children: ReactNode;
 }) {
   const fixtures = useFixtures();
-  const { tracker, setTracker } = useTracker();
+  const {
+    tracker,
+    setTracker,
+    pendingMatches: pendingTrackerMatches,
+  } = useTracker();
   const { predictions, setPrediction } = usePredictions();
   const { pick: tournamentPick, setPick: setTournamentPick } =
     useTournamentPick();
@@ -86,6 +92,7 @@ export function AppDataProvider({
         fixtures,
         tracker,
         setTracker,
+        pendingTrackerMatches,
         predictions,
         setPrediction,
         tournamentPick,

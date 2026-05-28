@@ -89,7 +89,8 @@ interface MatchCardProps {
   showTrackerControls?: boolean;
   showPredictionControls?: boolean;
   prediction?: Prediction;
-  onTrackerChange?: (state: TrackerState) => void;
+  /** Pass `null` to clear the current state back to unset. */
+  onTrackerChange?: (state: TrackerState | null) => void;
   onPredictionSubmit?: (pick: MatchPick, advancingTeam: Side | null) => void;
 }
 
@@ -139,8 +140,9 @@ export function MatchCard({
   onPredictionSubmit,
 }: MatchCardProps) {
   const now = useNow(60_000);
-  const { favoriteTeamId } = useAppData();
+  const { favoriteTeamId, pendingTrackerMatches } = useAppData();
   const trackerState = tracker[match.match_id];
+  const trackerPending = pendingTrackerMatches.has(match.match_id);
   const hidden = shouldHideScore(match, trackerState);
   const past = isPast(match.kickoff_utc, now);
   const teamsAreKnown = teamsKnown(match);
@@ -252,6 +254,7 @@ export function MatchCard({
               <TrackerStateButtons
                 current={trackerState}
                 onChange={onTrackerChange}
+                pending={trackerPending}
               />
             )}
             {hidden && showTrackerControls && onTrackerChange && (

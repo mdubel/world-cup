@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAppData } from "@/contexts/AppData";
 import { useNow } from "@/hooks/useNow";
 import { isPast } from "@/lib/time";
-import type { Match, TrackerState } from "@/lib/types";
+import type { Match } from "@/lib/types";
 import { useMemo, useState } from "react";
 
 type StatusFilter = "all" | "upcoming" | "watch_later" | "completed";
@@ -136,9 +136,7 @@ export function TrackerTab() {
                 match={m}
                 tracker={tracker}
                 showTrackerControls
-                onTrackerChange={(state: TrackerState) =>
-                  setTracker(m.match_id, state)
-                }
+                onTrackerChange={(state) => setTracker(m.match_id, state)}
               />
             ))}
           </div>

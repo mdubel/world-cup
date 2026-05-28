@@ -34,8 +34,14 @@ write_tracker <- function(uid, match_id, state) {
   if (is.null(match_id) || !nzchar(match_id)) {
     return(list(ok = FALSE, reason = "missing_match_id"))
   }
+  # A NULL / empty state is the "unset" signal — clear the entry instead of
+  # writing a sentinel row. Keeps the storage tidy and lets the UI treat
+  # absence as the default.
+  if (is.null(state) || identical(state, "") || isTRUE(is.na(state))) {
+    return(clear_tracker_entry(uid, match_id))
+  }
   if (!valid_tracker_state(state)) {
-    return(list(ok = FALSE, reason = "invalid_state"))
+    return(list(ok = FALSE, match_id = match_id, reason = "invalid_state"))
   }
 
   # No lock: this pin is written only by the user who owns it. The very rare
@@ -59,5 +65,5 @@ clear_tracker_entry <- function(uid, match_id) {
   df <- read_tracker(uid)
   df <- df[df$match_id != match_id, , drop = FALSE]
   pin_write_safe(tracker_pin_for(uid), df)
-  list(ok = TRUE)
+  list(ok = TRUE, match_id = match_id, state = NA_character_)
 }

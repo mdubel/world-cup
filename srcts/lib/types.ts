@@ -129,7 +129,12 @@ export interface CurrentUser {
 
 export interface SetTrackerPayload {
   match_id: string;
-  state: TrackerState;
+  /**
+   * `null` means "clear this match's watch-state entry" — the opposite of
+   * setting one of the three concrete values. The button row uses this to
+   * un-toggle an already-active state back to the default.
+   */
+  state: TrackerState | null;
 }
 
 export interface SetPredictionPayload {

@@ -29,7 +29,13 @@ export function BracketDialog({
   open,
   onOpenChange,
 }: BracketDialogProps) {
-  const { tracker, setTracker, predictions, setPrediction } = useAppData();
+  const {
+    tracker,
+    setTracker,
+    pendingTrackerMatches,
+    predictions,
+    setPrediction,
+  } = useAppData();
   const now = useNow(60_000);
 
   if (!match) {
@@ -106,6 +112,7 @@ export function BracketDialog({
             <TrackerStateButtons
               current={trackerState}
               onChange={(state) => setTracker(match.match_id, state)}
+              pending={pendingTrackerMatches.has(match.match_id)}
             />
           </div>
 
