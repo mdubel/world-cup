@@ -81,7 +81,7 @@ Rscript -e 'testthat::test_file("api_mapping_test.R")'
 
 | Layer | Tech |
 |---|---|
-| Frontend | React 19 + TypeScript, Tailwind v4, shadcn/ui primitives, Radix UI, [@posit/shiny-react](https://github.com/posit-dev/shiny-react) |
+| Frontend | React 19 + TypeScript, Tailwind v4, shadcn/ui primitives, Radix UI, [@posit/shiny-react](https://github.com/wch/shiny-react) |
 | Backend | R Shiny, `httr2` for the football-data API, `pins` for storage |
 | Storage | POSIT Pins on Connect (production) / `board_folder()` (local) |
 | Data source | [football-data.org](https://www.football-data.org/) free tier — covers the FIFA World Cup |
@@ -217,7 +217,7 @@ End users only need access to the app — they don't need direct access to the p
 ## Acknowledgements
 
 - Match schedule, results, and team crests from [football-data.org](https://www.football-data.org/)
-- Built on the [Shiny-React](https://github.com/posit-dev/shiny-react) template by Posit
+- Built on the [shiny-react](https://github.com/wch/shiny-react) template by Winston Chang
 - UI primitives from [shadcn/ui](https://ui.shadcn.com/) and [Radix UI](https://www.radix-ui.com/)
 - Display type is [Bebas Neue](https://fonts.google.com/specimen/Bebas+Neue)
 
