@@ -38,28 +38,26 @@ write_tracker <- function(uid, match_id, state) {
     return(list(ok = FALSE, reason = "invalid_state"))
   }
 
-  resource <- paste0("tracker_", safe_user_pin_suffix(uid))
-  with_lock(resource, {
-    df <- read_tracker(uid)
-    new_row <- data.frame(
-      match_id = match_id,
-      state = state,
-      updated_at_utc = now_utc(),
-      stringsAsFactors = FALSE
-    )
-    df <- upsert_row(df, new_row, key = "match_id")
-    pin_write_safe(tracker_pin_for(uid), df)
-  })
+  # No lock: this pin is written only by the user who owns it. The very rare
+  # case of "same user clicks in two tabs simultaneously" is best-effort —
+  # last write wins, which is the natural UX semantics anyway. Skipping the
+  # lock dance eliminates 4 pin ops + ~75ms sleep per click.
+  df <- read_tracker(uid)
+  new_row <- data.frame(
+    match_id = match_id,
+    state = state,
+    updated_at_utc = now_utc(),
+    stringsAsFactors = FALSE
+  )
+  df <- upsert_row(df, new_row, key = "match_id")
+  pin_write_safe(tracker_pin_for(uid), df)
 
   list(ok = TRUE, match_id = match_id, state = state)
 }
 
 clear_tracker_entry <- function(uid, match_id) {
-  resource <- paste0("tracker_", safe_user_pin_suffix(uid))
-  with_lock(resource, {
-    df <- read_tracker(uid)
-    df <- df[df$match_id != match_id, , drop = FALSE]
-    pin_write_safe(tracker_pin_for(uid), df)
-  })
+  df <- read_tracker(uid)
+  df <- df[df$match_id != match_id, , drop = FALSE]
+  pin_write_safe(tracker_pin_for(uid), df)
   list(ok = TRUE)
 }

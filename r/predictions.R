@@ -88,23 +88,22 @@ write_prediction <- function(uid, payload, fixtures) {
     return(list(ok = FALSE, reason = "invalid_advancing_team"))
   }
 
-  resource <- paste0("predictions_", safe_user_pin_suffix(uid))
-  with_lock(resource, {
-    df <- read_predictions(uid)
-    now <- now_utc()
-    existing <- df[df$match_id == payload$match_id, , drop = FALSE]
-    submitted <- if (nrow(existing) > 0) existing$submitted_at_utc[1] else now
-    new_row <- data.frame(
-      match_id = payload$match_id,
-      pick = payload$pick,
-      advancing_team = if (is.na(advancing_team)) NA_character_ else advancing_team,
-      submitted_at_utc = submitted,
-      updated_at_utc = now,
-      stringsAsFactors = FALSE
-    )
-    df <- upsert_row(df, new_row, key = "match_id")
-    pin_write_safe(predictions_pin_for(uid), df)
-  })
+  # No lock: per-user pin, only written by its owner. See write_tracker for
+  # the rationale — eliminates 4 pin ops + ~75ms sleep per click.
+  df <- read_predictions(uid)
+  now <- now_utc()
+  existing <- df[df$match_id == payload$match_id, , drop = FALSE]
+  submitted <- if (nrow(existing) > 0) existing$submitted_at_utc[1] else now
+  new_row <- data.frame(
+    match_id = payload$match_id,
+    pick = payload$pick,
+    advancing_team = if (is.na(advancing_team)) NA_character_ else advancing_team,
+    submitted_at_utc = submitted,
+    updated_at_utc = now,
+    stringsAsFactors = FALSE
+  )
+  df <- upsert_row(df, new_row, key = "match_id")
+  pin_write_safe(predictions_pin_for(uid), df)
 
   list(ok = TRUE, match_id = payload$match_id)
 }

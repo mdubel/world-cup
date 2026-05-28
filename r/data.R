@@ -6,7 +6,19 @@ pin_namespace <- function() {
 }
 
 pin_name <- function(suffix) {
-  paste0(pin_namespace(), "_", suffix)
+  short <- paste0(pin_namespace(), "_", suffix)
+  owner <- pin_owner()
+  if (nzchar(owner)) paste0(owner, "/", short) else short
+}
+
+# Owner prefix for pin names. On POSIT Connect, `pin_read("wc26_locks")`
+# matches every wc26_locks pin across every user — pins emits a warning per
+# call and the lookup is much slower than a fully-qualified `marcin/wc26_locks`.
+# Set WC26_PIN_OWNER to the bot/user that owns the wc26_* pins.
+pin_owner <- function() {
+  if (!running_on_connect()) return("")
+  owner <- Sys.getenv("WC26_PIN_OWNER", unset = "")
+  if (nzchar(owner)) owner else ""
 }
 
 .board_cache <- new.env(parent = emptyenv())
