@@ -11,6 +11,7 @@ source("fixtures.R", local = TRUE)
 source("users.R", local = TRUE)
 source("predictions.R", local = TRUE)
 source("tracker.R", local = TRUE)
+source("leaderboard.R", local = TRUE)
 source("refresh.R", local = TRUE)
 source("seed.R", local = TRUE)
 
@@ -30,6 +31,21 @@ server <- function(input, output, session) {
   fixtures_rv <- reactiveVal(read_fixtures())
   reread_fixtures <- function() {
     fixtures_rv(read_fixtures())
+  }
+
+  # Memoize derived fixture data (teams + lock time) so any consumer can
+  # cheaply re-read them without rebuilding from the full fixtures df.
+  fixtures_meta <- reactive({
+    fx <- fixtures_rv()
+    list(
+      teams = list_unique_teams(fx),
+      tournament_lock_utc = tournament_lock_time(fx)
+    )
+  })
+
+  leaderboard_snapshot_invalidator <- reactiveVal(0L)
+  invalidate_leaderboard_snapshot <- function() {
+    leaderboard_snapshot_invalidator(leaderboard_snapshot_invalidator() + 1L)
   }
 
   predictions_invalidator <- reactiveVal(0L)
@@ -94,10 +110,11 @@ server <- function(input, output, session) {
 
   output$fixtures <- render_json({
     fx <- fixtures_rv()
+    meta <- fixtures_meta()
     list(
       rows = fixtures_to_payload(fx),
-      teams = list_unique_teams(fx),
-      tournament_lock_utc = iso_utc(tournament_lock_time(fx)),
+      teams = meta$teams,
+      tournament_lock_utc = iso_utc(meta$tournament_lock_utc),
       server_now_utc = iso_utc(now_utc())
     )
   })
@@ -121,17 +138,30 @@ server <- function(input, output, session) {
   })
 
   output$leaderboard <- render_json({
+    # Three triggers (in increasing rebuild cost):
+    #  - leaderboard_snapshot_invalidator: an in-app event wrote a fresh
+    #    snapshot (e.g. tournament-pick change). Cheap re-read.
+    #  - fixtures_rv: a fixtures refresh happened. The refresh job already
+    #    wrote a fresh snapshot; we just re-read.
+    #  - predictions_invalidator / tournament_invalidator: kept for
+    #    backwards compatibility with the fallback live-build path below,
+    #    but the snapshot will usually short-circuit before that matters.
+    leaderboard_snapshot_invalidator()
+    fixtures_rv()
     predictions_invalidator()
     tournament_invalidator()
-    fx <- fixtures_rv()
-    users_df <- read_users()
-    tpicks <- read_tournament_picks()
-    board <- build_leaderboard(
-      fixtures_df = fx,
-      users_df = users_df,
-      predictions_loader = read_predictions,
-      tournament_picks_df = tpicks
-    )
+
+    board <- read_leaderboard_snapshot()
+    if (is.null(board) || is.null(board$rows) || nrow(board$rows) == 0) {
+      # First-deploy fallback: the refresh job hasn't run yet, so there's
+      # no snapshot. Pay the live-build cost this once.
+      board <- build_leaderboard(
+        fixtures_df = fixtures_rv(),
+        users_df = read_users(),
+        predictions_loader = read_predictions,
+        tournament_picks_df = read_tournament_picks()
+      )
+    }
     list(
       rows = if (is.null(board$rows) || nrow(board$rows) == 0) {
         list()
@@ -200,7 +230,22 @@ server <- function(input, output, session) {
     payload <- input$set_tournament_pick
     if (is.null(payload) || is.null(payload$team_id)) return()
     res <- write_tournament_pick(uid, payload$team_id, fixtures_rv())
-    if (isTRUE(res$ok)) invalidate_tournament()
+    if (isTRUE(res$ok)) {
+      invalidate_tournament()
+      # Rebuild the leaderboard snapshot so other users see the updated
+      # champion-pick column without waiting for the next refresh cycle.
+      # Safe to fail silently — the next scheduled refresh will catch up.
+      tryCatch(
+        {
+          rebuild_leaderboard_snapshot(fixtures_df = fixtures_rv())
+          invalidate_leaderboard_snapshot()
+        },
+        error = function(e) {
+          warning(sprintf("Snapshot rebuild after tournament pick failed: %s",
+                          conditionMessage(e)))
+        }
+      )
+    }
     post_message(session, "tournamentPickResult", res)
   })
 
@@ -214,7 +259,12 @@ server <- function(input, output, session) {
     res <- tryCatch(run_refresh(), error = function(e) {
       list(ok = FALSE, error = conditionMessage(e))
     })
-    if (isTRUE(res$ok)) reread_fixtures()
+    if (isTRUE(res$ok)) {
+      reread_fixtures()
+      # run_refresh already wrote the snapshot; just bump the invalidator
+      # so the leaderboard output re-reads it.
+      invalidate_leaderboard_snapshot()
+    }
     post_message(session, "refreshResult", res)
   })
 }

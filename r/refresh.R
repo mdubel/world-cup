@@ -35,9 +35,20 @@ run_refresh <- function(transport = default_transport) {
     resp <- fetch_matches(transport = transport)
     fx <- api_response_to_fixtures(resp)
     write_fixtures(fx)
-    list(ok = TRUE, n = nrow(fx))
+    # Rebuild the leaderboard snapshot in the same pass. The app reads this
+    # pin in O(1) instead of fanning out across every user's predictions
+    # pin on every leaderboard render.
+    snapshot_n <- tryCatch({
+      snap <- rebuild_leaderboard_snapshot(fixtures_df = fx)
+      if (is.null(snap$rows)) 0L else nrow(snap$rows)
+    }, error = function(e) {
+      warning(sprintf("Leaderboard snapshot rebuild failed: %s",
+                      conditionMessage(e)))
+      -1L
+    })
+    list(ok = TRUE, n = nrow(fx), leaderboard_rows = snapshot_n)
   }, error = function(e) {
-    list(ok = FALSE, error = conditionMessage(e), n = 0L)
+    list(ok = FALSE, error = conditionMessage(e), n = 0L, leaderboard_rows = 0L)
   })
   finished <- now_utc()
   append_refresh_log(
@@ -46,9 +57,10 @@ run_refresh <- function(transport = default_transport) {
     result$n,
     if (!result$ok) result$error else ""
   )
-  message(sprintf("[refresh %s] %s — %d fixtures",
+  message(sprintf("[refresh %s] %s — %d fixtures, %d leaderboard rows",
                   iso_utc(finished),
                   if (result$ok) "OK" else paste0("FAIL: ", result$error),
-                  result$n))
+                  result$n,
+                  result$leaderboard_rows))
   result
 }

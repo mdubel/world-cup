@@ -128,7 +128,7 @@ random_holder_id <- function() {
   )
 }
 
-with_lock <- function(resource, expr) {
+with_lock <- function(resource, expr, verify = TRUE) {
   holder <- random_holder_id()
   acquired <- FALSE
 
@@ -148,11 +148,23 @@ with_lock <- function(resource, expr) {
       candidate <- rbind(locks, new_row)
       pin_write_safe(pin_name("locks"), candidate)
 
-      Sys.sleep(0.05 + stats::runif(1) * 0.05)
-      verify <- read_locks_df()
-      verify_row <- verify[verify$resource == resource, , drop = FALSE]
-      if (nrow(verify_row) >= 1 &&
-          identical(tail(verify_row$holder, 1), holder)) {
+      if (verify) {
+        # No sleep before verify — pins on Connect is read-after-write
+        # consistent (it's an API call, not S3 eventual consistency). The
+        # post-acquire sleep that used to live here cost ~75ms per write
+        # without buying any correctness.
+        verify_locks <- read_locks_df()
+        verify_row <- verify_locks[verify_locks$resource == resource, , drop = FALSE]
+        if (nrow(verify_row) >= 1 &&
+            identical(tail(verify_row$holder, 1), holder)) {
+          acquired <- TRUE
+          break
+        }
+      } else {
+        # verify=FALSE: best-effort lock. Two simultaneous writers can both
+        # think they hold it; both proceed; last write to the target pin
+        # wins. Acceptable for low-contention metadata writes (e.g. updating
+        # last_seen_utc in the users pin) where losing a write is harmless.
         acquired <- TRUE
         break
       }

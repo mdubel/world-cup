@@ -26,7 +26,11 @@ read_users <- function() {
 
 touch_user <- function(uid, display_name, tz = NA_character_) {
   if (is.null(uid) || !nzchar(uid)) return(invisible(NULL))
-  with_lock("users", {
+  # verify=FALSE: touch_user runs on every session start. The lock is here
+  # to keep two concurrent touches from overwriting each other's row in
+  # the global users pin; skipping the verify step trades a tiny race-
+  # window risk for ~1 pin op saved per session start.
+  with_lock("users", verify = FALSE, {
     df <- read_users()
     now <- now_utc()
     existing <- df[df$user_id == uid, , drop = FALSE]
@@ -67,7 +71,8 @@ set_user_setting <- function(uid, field, value) {
   if (!field %in% c("tz", "theme", "favorite_team_id")) {
     return(invisible(NULL))
   }
-  with_lock("users", {
+  # See touch_user above re: verify=FALSE.
+  with_lock("users", verify = FALSE, {
     df <- read_users()
     idx <- which(df$user_id == uid)
     now <- now_utc()

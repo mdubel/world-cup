@@ -168,21 +168,28 @@ A single app-level "revealed" state (in [`SpoilersContext`](srcts/contexts/Spoil
 
 Two Connect content items share the same pins board:
 
-1. **App** — published from the repo root. Runs interactively for end users via Connect SSO.
-2. **Scheduled job** — `refresh_job.R` published as a scheduled R script (cron `*/10 * * * *`). Pulls football-data.org and writes the shared `wc26_fixtures` pin.
+1. **App** — published from `r/`. Runs interactively for end users via Connect SSO.
+2. **Scheduled job** — `refresh_job.Rmd` (a thin wrapper around `refresh_job.R`) published as a scheduled R Markdown (cron `*/10 * * * *`). Pulls football-data.org, writes the shared `wc26_fixtures` pin, and rebuilds the `wc26_leaderboard` snapshot so the app reads it in one op.
 
 ```bash
 # 1. Build the production bundle (writes r/www/main.{js,css} + favicon)
 npm run build-prod
+rm -f r/www/*.map
 
-# 2. Generate manifests
-R -e 'rsconnect::writeManifest("r")'
+# 2. Deploy app
+Rscript -e 'rsconnect::deployApp(appDir="r", appName="world-cup", server="connect.appsilon.com", account="marcin")'
 
-# 3. Deploy app
-R -e 'rsconnect::deployApp("r")'
-
-# 4. Deploy scheduled job
-R -e 'rsconnect::deployApp(appPrimaryDoc="refresh_job.R")'
+# 3. Deploy scheduled refresh
+Rscript -e 'rsconnect::deployApp(
+  appDir = ".",
+  appPrimaryDoc = "refresh_job.Rmd",
+  appFiles = c("refresh_job.Rmd", "refresh_job.R",
+               "r/util_time.R", "r/data.R", "r/scoring.R",
+               "r/api.R", "r/fixtures.R", "r/users.R",
+               "r/predictions.R", "r/leaderboard.R", "r/refresh.R"),
+  appName = "world-cup-fixtures",
+  server = "connect.appsilon.com", account = "marcin"
+)'
 ```
 
 ### Environment variables on each Connect content item
@@ -191,6 +198,7 @@ R -e 'rsconnect::deployApp(appPrimaryDoc="refresh_job.R")'
 |---|---|---|
 | `FOOTBALL_DATA_TOKEN` | both | API token from football-data.org (free tier, 10 req/min) |
 | `CONNECT_API_KEY` | both | Used by `pins::board_connect()` for pin auth |
+| `WC26_PIN_OWNER` | both | Connect username that owns the `wc26_*` pins (e.g. `marcin`). Fully-qualifies pin names to avoid "multiple matches" warnings + slow lookups. |
 | `WC26_PIN_NAMESPACE` | both | Optional. Default `wc26`; set to `wc26_staging` for a parallel environment |
 
 Both content items should run under the same Connect identity (a bot user is fine) so the pins are owned by one writer.
