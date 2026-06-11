@@ -40,19 +40,25 @@ run_refresh <- function(transport = default_transport,
 
     # Step 2: ESPN overlay for live scores. Failure here MUST NOT fail the
     # refresh — football-data scores (delayed but real) are the fallback.
-    overlay_stats <- list(matched = 0L, updated = 0L, error = NULL)
-    fx <- tryCatch({
+    # Return both the new fx and the stats from the inner tryCatch so we
+    # don't have to use <<- (which interacts badly with $-subset assignment
+    # in some R versions and was silently swallowing the overlay errors).
+    overlay_outcome <- tryCatch({
       fx2 <- apply_espn_overlay(fx, transport = espn_transport)
       stats <- attr(fx2, "overlay_stats") %||% list()
-      overlay_stats$matched <<- as.integer(stats$matched %||% 0L)
-      overlay_stats$updated <<- as.integer(stats$updated %||% 0L)
-      fx2
+      list(fx = fx2,
+           matched = as.integer(stats$matched %||% 0L),
+           updated = as.integer(stats$updated %||% 0L),
+           error = NULL)
     }, error = function(e) {
-      overlay_stats$error <<- conditionMessage(e)
       warning(sprintf("ESPN overlay failed (keeping football-data scores): %s",
                       conditionMessage(e)))
-      fx
+      list(fx = fx, matched = 0L, updated = 0L, error = conditionMessage(e))
     })
+    fx <- overlay_outcome$fx
+    overlay_stats <- list(matched = overlay_outcome$matched,
+                          updated = overlay_outcome$updated,
+                          error  = overlay_outcome$error)
 
     write_fixtures(fx)
 
