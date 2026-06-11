@@ -78,20 +78,30 @@ pin_read_or <- function(name, default) {
   )
 }
 
-# Every pin in this app is last-write-wins; version history would only let a
-# subtle bug bite us. When two writes happen in the same wall-clock second
-# (acquire + release of a lock, for example) pins board_folder gives them two
-# version directories whose lexical ordering does NOT reflect write order, so
-# pin_read() can surface the wrong "latest" — the lock release looks
-# ineffective.
-#
-# Locally we still pass versioned=FALSE because board_folder honours it
-# (the constructor already does too). On board_connect, that flag turns
-# into a HARD ERROR once a pin has accumulated >1 version — and writing
-# 'with_lock' against a versioned-default board IS what causes the version
-# accumulation. So on Connect we omit the flag (defer to the board default)
-# and then prune old versions ourselves to keep storage bounded.
+# Default write path for data pins. On Connect we defer to the board's
+# versioning default (versioned=TRUE) so we KEEP full history for audit /
+# rollback — predictions, tracker state, users, fixtures, leaderboard
+# snapshots, the refresh log, tournament picks. Locally board_folder gets
+# versioned=FALSE because its same-second-write ordering bug otherwise
+# bites us: two writes within the same second can produce version
+# directories whose lexical ordering doesn't match write order, so the
+# "latest" version pin_read() surfaces can be the wrong one.
 pin_write_safe <- function(name, value, type = "rds") {
+  if (running_on_connect()) {
+    pins::pin_write(pin_board(), value, name = name, type = type)
+  } else {
+    pins::pin_write(pin_board(), value, name = name, type = type,
+                    versioned = FALSE)
+  }
+}
+
+# Write path for *transient* pins (currently just wc26_locks). Same as
+# pin_write_safe, but on Connect we prune to the latest 3 versions after
+# every write. Lock acquire + release = 2 writes per critical section,
+# multiplied across every session start → without pruning the locks pin
+# accumulates fast and eventually pins refuses any further write. Three
+# versions is enough to inspect the recent state when debugging.
+pin_write_transient <- function(name, value, type = "rds") {
   if (running_on_connect()) {
     pins::pin_write(pin_board(), value, name = name, type = type)
     tryCatch(
@@ -164,7 +174,7 @@ with_lock <- function(resource, expr, verify = TRUE) {
         stringsAsFactors = FALSE
       )
       candidate <- rbind(locks, new_row)
-      pin_write_safe(pin_name("locks"), candidate)
+      pin_write_transient(pin_name("locks"), candidate)
 
       if (verify) {
         # No sleep before verify — pins on Connect is read-after-write
@@ -200,7 +210,7 @@ with_lock <- function(resource, expr, verify = TRUE) {
       remaining <- read_locks_df()
       remaining <- remaining[!(remaining$resource == resource &
                                  remaining$holder == holder), , drop = FALSE]
-      pin_write_safe(pin_name("locks"), remaining)
+      pin_write_transient(pin_name("locks"), remaining)
     }, error = function(e) {
       warning(sprintf("Failed to release lock '%s': %s", resource, conditionMessage(e)))
     })
