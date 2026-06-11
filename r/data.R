@@ -83,10 +83,28 @@ pin_read_or <- function(name, default) {
 # (acquire + release of a lock, for example) pins board_folder gives them two
 # version directories whose lexical ordering does NOT reflect write order, so
 # pin_read() can surface the wrong "latest" — the lock release looks
-# ineffective. Forcing versioned=FALSE on every write avoids this.
+# ineffective.
+#
+# Locally we still pass versioned=FALSE because board_folder honours it
+# (the constructor already does too). On board_connect, that flag turns
+# into a HARD ERROR once a pin has accumulated >1 version — and writing
+# 'with_lock' against a versioned-default board IS what causes the version
+# accumulation. So on Connect we omit the flag (defer to the board default)
+# and then prune old versions ourselves to keep storage bounded.
 pin_write_safe <- function(name, value, type = "rds") {
-  pins::pin_write(pin_board(), value, name = name, type = type,
-                  versioned = FALSE)
+  if (running_on_connect()) {
+    pins::pin_write(pin_board(), value, name = name, type = type)
+    tryCatch(
+      pins::pin_versions_prune(pin_board(), name, n = 3),
+      error = function(e) {
+        warning(sprintf("pin_versions_prune('%s') failed: %s",
+                        name, conditionMessage(e)))
+      }
+    )
+  } else {
+    pins::pin_write(pin_board(), value, name = name, type = type,
+                    versioned = FALSE)
+  }
 }
 
 pin_meta_modified <- function(name) {
