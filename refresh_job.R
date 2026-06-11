@@ -17,6 +17,14 @@ if (dir.exists("r") && file.exists(file.path("r", "data.R"))) {
 }
 
 source("util_time.R")
+# auth.R defines safe_user_pin_suffix(), which predictions.R/tracker.R use to
+# derive per-user pin names. Without it sourced, predictions_pin_for() raises
+# "could not find function safe_user_pin_suffix" inside pin_exists_safe(),
+# whose tryCatch silently returns FALSE — so read_predictions() returns an
+# empty frame for every user and the rebuilt leaderboard snapshot is all
+# zeros. (Symptom: app shows 0 points for everyone after each refresh, even
+# for users who picked the winning side.)
+source("auth.R")
 source("data.R")
 source("scoring.R")
 source("api.R")
