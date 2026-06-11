@@ -12,13 +12,24 @@ pin_name <- function(suffix) {
 }
 
 # Owner prefix for pin names. On POSIT Connect, `pin_read("wc26_locks")`
-# matches every wc26_locks pin across every user — pins emits a warning per
-# call and the lookup is much slower than a fully-qualified `marcin/wc26_locks`.
-# Set WC26_PIN_OWNER to the bot/user that owns the wc26_* pins.
+# without an owner prefix is unreliable: for some pin names it finds the
+# right pin (with a "multiple matches" warning), for others it silently
+# returns empty — both surface as silent data loss in build_leaderboard.
+# Always emit `<owner>/<pin>` on Connect so the lookup is unambiguous.
+#
+# Resolution order:
+#   1. WC26_PIN_OWNER env var (explicit override on the Connect content item)
+#   2. board_connect()$account (the API-key user the board authenticated as)
+#   3. "" (fall back to bare names; reads may silently return empty)
 pin_owner <- function() {
   if (!running_on_connect()) return("")
   owner <- Sys.getenv("WC26_PIN_OWNER", unset = "")
-  if (nzchar(owner)) owner else ""
+  if (nzchar(owner)) return(owner)
+  board <- tryCatch(pin_board(), error = function(e) NULL)
+  if (!is.null(board) && !is.null(board$account) && nzchar(board$account)) {
+    return(board$account)
+  }
+  ""
 }
 
 .board_cache <- new.env(parent = emptyenv())
