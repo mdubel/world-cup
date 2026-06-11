@@ -24,12 +24,29 @@ export function MatchScore({ match, hidden }: MatchScoreProps) {
   const finished = match.status === "FINISHED";
   const hasFt = match.home_score_ft !== null && match.away_score_ft !== null;
 
+  // Pre-match / scheduled — nothing to show but the matchup.
   if (!inProgress && !finished && !hasFt) {
     return (
       <div className='flex flex-col items-center text-center px-2'>
         <div className='font-display text-3xl text-ink-soft tracking-widest'>
           vs
         </div>
+      </div>
+    );
+  }
+
+  // Finished by the API but the score hasn't been entered yet (football-data
+  // sometimes flips status to FINISHED before the fullTime fields populate).
+  // Show a placeholder instead of rendering a misleading "0 – 0".
+  if (finished && !hasFt) {
+    return (
+      <div className='flex flex-col items-center text-center px-2'>
+        <div className='font-display text-3xl text-ink-soft tracking-widest'>
+          — – —
+        </div>
+        <span className='mt-1 text-[10px] uppercase tracking-wider text-ink-soft'>
+          Final · score pending
+        </span>
       </div>
     );
   }
