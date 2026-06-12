@@ -14,6 +14,7 @@ source("predictions.R", local = TRUE)
 source("tracker.R", local = TRUE)
 source("leaderboard.R", local = TRUE)
 source("refresh.R", local = TRUE)
+source("admin.R", local = TRUE)
 source("seed.R", local = TRUE)
 
 # Auto-seed the fixtures pin with fake data when running locally outside
@@ -82,6 +83,7 @@ server <- function(input, output, session) {
       id = uid,
       display_name = user_info$display_name,
       is_dev = isTRUE(user_info$is_dev),
+      is_admin = isTRUE(is_admin(user_info)),
       tz = if (is.null(profile)) NULL else profile$tz,
       theme = if (is.null(profile)) NULL else profile$theme,
       favorite_team_id = if (is.null(profile)) NULL else profile$favorite_team_id
@@ -248,6 +250,30 @@ server <- function(input, output, session) {
       )
     }
     post_message(session, "tournamentPickResult", res)
+  })
+
+  # Admin stats — only computed when the admin tab is actually observing.
+  # The reactiveVal lets the admin push a manual "refresh stats" button
+  # without us having to wire this output into the regular invalidators
+  # (which would re-trigger this expensive fan-out on every prediction
+  # click made anywhere in the app).
+  admin_stats_invalidator <- reactiveVal(0L)
+
+  observeEvent(input$admin_refresh, ignoreInit = TRUE, {
+    admin_stats_invalidator(admin_stats_invalidator() + 1L)
+  })
+
+  output$admin_stats <- render_json({
+    if (!isTRUE(is_admin(user_info))) {
+      return(list(error = "not_authorized"))
+    }
+    admin_stats_invalidator()
+    # Tap into fixtures_rv so a fixtures refresh DOES update the dashboard
+    # (cheap signal — fixtures change rarely).
+    fx <- fixtures_rv()
+    users_df <- read_users()
+    tpicks <- read_tournament_picks()
+    compute_admin_stats(fx, users_df, tpicks)
   })
 
   observeEvent(input$manual_refresh, ignoreInit = TRUE, {

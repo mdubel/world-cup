@@ -1,5 +1,6 @@
 import { Header } from "@/components/Header";
 import { MatchMarquee } from "@/components/MatchMarquee";
+import { AdminTab } from "@/components/Tabs/AdminTab";
 import { BracketTab } from "@/components/Tabs/BracketTab";
 import { GroupsTab } from "@/components/Tabs/GroupsTab";
 import { LeaderboardTab } from "@/components/Tabs/LeaderboardTab";
@@ -101,6 +102,15 @@ export function App() {
                     >
                       Standings
                     </TabsTrigger>
+                    {user?.is_admin && (
+                      <TabsTrigger
+                        value='admin'
+                        className='font-display tracking-wider data-[state=active]:bg-ink data-[state=active]:text-mustard data-[state=active]:border-2 data-[state=active]:border-mustard'
+                        title='Admin dashboard (visible only to allow-listed admins)'
+                      >
+                        Admin
+                      </TabsTrigger>
+                    )}
                   </div>
                 </TabsList>
               </div>
@@ -125,6 +135,11 @@ export function App() {
               <TabsContent value='leaderboard'>
                 <LeaderboardTab />
               </TabsContent>
+              {user?.is_admin && (
+                <TabsContent value='admin'>
+                  <AdminTab />
+                </TabsContent>
+              )}
             </Tabs>
           </main>
           <Toaster />

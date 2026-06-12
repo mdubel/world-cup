@@ -198,8 +198,9 @@ Rscript -e 'rsconnect::deployApp(
 |---|---|---|
 | `FOOTBALL_DATA_TOKEN` | both | API token from football-data.org (free tier, 10 req/min) |
 | `CONNECT_API_KEY` | both | Used by `pins::board_connect()` for pin auth |
-| `WC26_PIN_OWNER` | both | Connect username that owns the `wc26_*` pins (e.g. `marcin`). Fully-qualifies pin names to avoid "multiple matches" warnings + slow lookups. |
+| `WC26_PIN_OWNER` | both | Optional. Connect username that owns the `wc26_*` pins (e.g. `marcin`). When unset, falls back to `board_connect()$account`. Set this only to point at a different owner. |
 | `WC26_PIN_NAMESPACE` | both | Optional. Default `wc26`; set to `wc26_staging` for a parallel environment |
+| `WC26_ADMINS` | app only | Comma-separated Connect usernames who see the **Admin** tab (e.g. `marcin,bartosz_rozek`). Unset = nobody sees it. Local testing: prefix with `dev:` (e.g. `dev:alice`) to match the dev-fallback user ID. |
 
 Both content items should run under the same Connect identity (a bot user is fine) so the pins are owned by one writer.
 

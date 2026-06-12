@@ -122,9 +122,43 @@ export interface CurrentUser {
   id: string;
   display_name: string;
   is_dev: boolean;
+  is_admin: boolean;
   tz: string | null;
   theme: "light" | "dark" | null;
   favorite_team_id: string | null;
+}
+
+export interface AdminUserRow {
+  user_id: string;
+  display_name: string;
+  first_seen_utc: string;
+  last_seen_utc: string;
+  tz: string | null;
+  theme: string | null;
+  favorite_team_id: string | null;
+  favorite_team_name: string | null;
+  group_picks: number;
+  knockout_picks: number;
+  tracker_watch_later: number;
+  tracker_watched: number;
+  tracker_skipped: number;
+  champion_pick_team_id: string | null;
+  champion_pick_team_name: string | null;
+  champion_pick_at_utc: string | null;
+}
+
+export interface AdminStats {
+  total_users: number;
+  users: AdminUserRow[];
+  counts: {
+    with_tracker: number;
+    with_group_picks: number;
+    with_knockout_picks: number;
+    with_favorite: number;
+    with_champion: number;
+  };
+  computed_at_utc: string;
+  error?: string;
 }
 
 export interface SetTrackerPayload {
