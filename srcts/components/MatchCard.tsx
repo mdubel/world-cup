@@ -306,19 +306,6 @@ export function MatchCard({
                 </div>
               )}
 
-            {showPredictionControls && prediction && (
-              <p className='text-[11px] text-ink-soft font-mono'>
-                Your pick: {prediction.pick}
-                {prediction.advancing_team && prediction.pick === "DRAW"
-                  ? ` · advances: ${
-                      prediction.advancing_team === "HOME"
-                        ? match.home_team_name
-                        : match.away_team_name
-                    }`
-                  : ""}
-              </p>
-            )}
-
             {hidden && showTrackerControls && onTrackerChange && (
               <div className='flex gap-3 items-center flex-wrap'>
                 <button
