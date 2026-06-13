@@ -136,3 +136,50 @@ export function groupSortKey(group: string): string {
 export function groupShortLabel(group: string): string {
   return group.replace(/^GROUP_/, "");
 }
+
+export interface ThirdPlaceRow extends StandingsRow {
+  group: string;
+  group_label: string;
+  any_matches_played: boolean;
+}
+
+/**
+ * Cross-group ranking of the 3rd-placed team in every group. In WC 2026 the
+ * top 8 of these 12 teams qualify directly for the round of 32 — no playoff,
+ * they just join the bracket. Tiebreakers mirror FIFA's published rules as
+ * close as we can with the data we have: points, goal difference, goals
+ * scored. (Fair-play points and drawing of lots are out of reach.)
+ *
+ * Groups whose matches the user has marked WATCH_LATER are dropped from the
+ * returned list — including them would reveal the in-group ordering. The
+ * caller can compare returned.length to expected group count to show a
+ * "some groups hidden" hint.
+ */
+export function computeThirdPlaceTable(
+  groups: Array<[string, Match[]]>,
+  groupTainted: Map<string, boolean>
+): ThirdPlaceRow[] {
+  const rows: ThirdPlaceRow[] = [];
+  for (const [group, ms] of groups) {
+    if (groupTainted.get(group)) continue;
+    const standings = computeGroupStandings(ms);
+    const third = standings[2];
+    if (!third) continue;
+    rows.push({
+      ...third,
+      group,
+      group_label: groupShortLabel(group),
+      any_matches_played: standings.some((r) => r.played > 0),
+    });
+  }
+  rows.sort((x, y) => {
+    if (y.points !== x.points) return y.points - x.points;
+    if (y.goal_diff !== x.goal_diff) return y.goal_diff - x.goal_diff;
+    if (y.goals_for !== x.goals_for) return y.goals_for - x.goals_for;
+    return x.team_name.localeCompare(y.team_name);
+  });
+  return rows;
+}
+
+// Top 8 of the 12 third-placed teams advance directly in WC 2026.
+export const THIRD_PLACE_ADVANCING_SLOTS = 8;

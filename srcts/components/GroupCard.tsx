@@ -39,7 +39,7 @@ const QUAL_BAND: Record<QualificationState, string> = {
 
 const QUAL_LABEL: Record<QualificationState, string> = {
   advancing: "Through",
-  playoff: "Playoff",
+  playoff: "3rd — top 8 advance",
   eliminated: "Out",
   neutral: "—",
 };
@@ -90,7 +90,7 @@ export function GroupCard({
           <table className='w-full text-sm'>
             <thead>
               <tr className='text-[10px] uppercase tracking-widest text-ink-soft'>
-                <th className='text-left font-medium pl-2 py-1 w-6'>#</th>
+                <th className='text-left font-medium pl-2 pr-2 py-1 w-9'>#</th>
                 <th className='text-left font-medium py-1'>Team</th>
                 <th className='font-medium px-1 py-1 text-right'>P</th>
                 <th className='font-medium px-1 py-1 text-right'>W</th>
@@ -113,10 +113,10 @@ export function GroupCard({
                     key={row.team_id}
                     className='border-t border-paper-edge/40 hover:bg-paper-soft transition-colors'
                   >
-                    <td className='pl-2 py-2'>
-                      <div className='flex items-center gap-1'>
+                    <td className='pl-2 pr-2 py-2'>
+                      <div className='flex items-center gap-1.5'>
                         <span
-                          className={cn("w-1 h-5 rounded-sm", bandClass)}
+                          className={cn("w-1 h-5 rounded-sm shrink-0", bandClass)}
                           aria-label={bandLabel}
                           title={bandLabel}
                         />

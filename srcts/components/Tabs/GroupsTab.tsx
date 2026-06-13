@@ -2,9 +2,14 @@ import { EmptyState } from "@/components/EmptyState";
 import { FunFactStrip } from "@/components/FunFactStrip";
 import { GroupCard } from "@/components/GroupCard";
 import { SpoilerBanner } from "@/components/SpoilerBanner";
+import { ThirdPlaceTable } from "@/components/ThirdPlaceTable";
 import { useAppData } from "@/contexts/AppData";
 import { useSpoilers } from "@/contexts/Spoilers";
-import { groupMatchesByGroup, groupSortKey } from "@/lib/standings";
+import {
+  computeThirdPlaceTable,
+  groupMatchesByGroup,
+  groupSortKey,
+} from "@/lib/standings";
 import { useMemo } from "react";
 
 export function GroupsTab() {
@@ -37,6 +42,16 @@ export function GroupsTab() {
   const anyGroupTainted = Array.from(groupHasWatchLater.values()).some(
     Boolean
   );
+
+  // Hide tainted groups from the cross-group 3rd-place ranking — including
+  // them would reveal the unwatched in-group ordering once the user clicks
+  // through. When the spoiler is explicitly revealed we include everything.
+  const thirdPlaceRows = useMemo(() => {
+    const filterMap = revealed
+      ? new Map<string, boolean>()
+      : groupHasWatchLater;
+    return computeThirdPlaceTable(groups, filterMap);
+  }, [groups, groupHasWatchLater, revealed]);
 
   if (!loaded) {
     return <EmptyState title='Loading groups…' />;
@@ -86,12 +101,18 @@ export function GroupsTab() {
           <span className='w-2 h-3 rounded-sm bg-pitch' /> Top 2 advance
         </span>
         <span className='inline-flex items-center gap-1'>
-          <span className='w-2 h-3 rounded-sm bg-mustard' /> 3rd — playoff
+          <span className='w-2 h-3 rounded-sm bg-mustard' /> 3rd — best 8 across
+          groups also advance
         </span>
         <span className='inline-flex items-center gap-1'>
           <span className='w-2 h-3 rounded-sm bg-crimson/70' /> 4th — out
         </span>
       </div>
+
+      <ThirdPlaceTable
+        rows={thirdPlaceRows}
+        totalGroups={groups.length}
+      />
 
       <FunFactStrip />
     </div>
