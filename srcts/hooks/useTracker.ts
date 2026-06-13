@@ -28,6 +28,12 @@ export interface TrackerApi {
    * small spinner on the affected control.
    */
   pendingMatches: Set<string>;
+  /**
+   * False until the server has delivered the first `tracker` payload for
+   * this session. Used to gate the action bar so a quick-clicking user
+   * can't blow away their existing state before it has arrived.
+   */
+  loaded: boolean;
 }
 
 export function useTracker(): TrackerApi {
@@ -110,5 +116,10 @@ export function useTracker(): TrackerApi {
     [pending]
   );
 
-  return { tracker: effectiveTracker, setTracker, pendingMatches };
+  return {
+    tracker: effectiveTracker,
+    setTracker,
+    pendingMatches,
+    loaded: tracker !== undefined,
+  };
 }

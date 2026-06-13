@@ -148,7 +148,8 @@ export function MatchCard({
   onPredictionSubmit,
 }: MatchCardProps) {
   const now = useNow(60_000);
-  const { favoriteTeamId, pendingTrackerMatches } = useAppData();
+  const { favoriteTeamId, pendingTrackerMatches, userDataLoaded } =
+    useAppData();
   const trackerState = tracker[match.match_id];
   const trackerPending = pendingTrackerMatches.has(match.match_id);
   const hidden = shouldHideScore(match, trackerState);
@@ -272,6 +273,7 @@ export function MatchCard({
                   current={trackerState}
                   onChange={onTrackerChange}
                   pending={trackerPending}
+                  disabled={!userDataLoaded}
                 />
               )}
               {showPredictionControls &&
@@ -281,7 +283,11 @@ export function MatchCard({
                     <PredictionPicker
                       match={match}
                       prediction={prediction}
-                      disabled={past}
+                      // Disable until we know the user's existing picks —
+                      // otherwise a click during the load races the
+                      // incoming server payload and could overwrite an
+                      // existing prediction the user already made.
+                      disabled={past || !userDataLoaded}
                       onSubmit={onPredictionSubmit}
                       compact
                     />

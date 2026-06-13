@@ -41,6 +41,15 @@ interface AppData {
   tournamentPick: TournamentPick | null;
   setTournamentPick: (teamId: string) => void;
   leaderboard: LeaderboardView;
+  /**
+   * True once tracker + predictions + tournament-pick have all delivered
+   * their first server payload for this session. Until then the action
+   * buttons in MatchCard / BracketDialog stay disabled — clicks before
+   * the data arrives would race the initial-state load and could overwrite
+   * existing picks. The localStorage cache only covers fixtures (global,
+   * spoiler-safe); per-user state still has to come over the websocket.
+   */
+  userDataLoaded: boolean;
   /** User's chosen favorite/supported team (separate from the champion pick). */
   favoriteTeam: Team | null;
   favoriteTeamId: string | null;
@@ -62,11 +71,21 @@ export function AppDataProvider({
     tracker,
     setTracker,
     pendingMatches: pendingTrackerMatches,
+    loaded: trackerLoaded,
   } = useTracker();
-  const { predictions, setPrediction } = usePredictions();
-  const { pick: tournamentPick, setPick: setTournamentPick } =
-    useTournamentPick();
+  const {
+    predictions,
+    setPrediction,
+    loaded: predictionsLoaded,
+  } = usePredictions();
+  const {
+    pick: tournamentPick,
+    setPick: setTournamentPick,
+    loaded: tournamentLoaded,
+  } = useTournamentPick();
   const leaderboard = useLeaderboard();
+  const userDataLoaded =
+    trackerLoaded && predictionsLoaded && tournamentLoaded;
 
   // Hoist the favorite-team setter into this provider so every consumer
   // (settings dialog, match cards) shares one Shiny input instance.
@@ -98,6 +117,7 @@ export function AppDataProvider({
         tournamentPick,
         setTournamentPick,
         leaderboard,
+        userDataLoaded,
         favoriteTeam,
         favoriteTeamId,
         setFavoriteTeam,

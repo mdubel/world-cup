@@ -11,6 +11,12 @@ interface TrackerStateButtonsProps {
    * server round-trips.
    */
   pending?: boolean;
+  /**
+   * Force all buttons disabled (no spinner). Used while the user-specific
+   * tracker payload is still loading — clicking before it lands would
+   * blindly overwrite existing state with the user's snap judgement.
+   */
+  disabled?: boolean;
 }
 
 interface StateOption {
@@ -41,29 +47,34 @@ export function TrackerStateButtons({
   current,
   onChange,
   pending = false,
+  disabled = false,
 }: TrackerStateButtonsProps) {
   return (
     <div className='flex flex-wrap gap-2'>
       {OPTIONS.map((opt) => {
         const active = current === opt.state;
         const showSpinner = pending && active;
+        const isDisabled = pending || disabled;
         return (
           <button
             key={opt.state}
             type='button'
-            disabled={pending}
+            disabled={isDisabled}
             onClick={() => onChange(active ? null : opt.state)}
             title={
-              active
-                ? "Click again to clear this match's state"
-                : `Mark as "${opt.label}"`
+              disabled
+                ? "Loading your tracker state…"
+                : active
+                  ? "Click again to clear this match's state"
+                  : `Mark as "${opt.label}"`
             }
             aria-pressed={active}
             className={cn(
               "font-display tracking-wider text-xs uppercase",
               "inline-flex items-center gap-1.5",
               "px-3 py-1.5 rounded-sm border-2 transition-colors",
-              "disabled:cursor-progress",
+              pending && "disabled:cursor-progress",
+              disabled && !pending && "disabled:cursor-wait disabled:opacity-50",
               active
                 ? opt.activeClass
                 : "border-paper-edge text-ink-soft hover:bg-paper-soft"

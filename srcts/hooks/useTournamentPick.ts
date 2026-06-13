@@ -8,6 +8,8 @@ import type {
 export function useTournamentPick(): {
   pick: TournamentPick | null;
   setPick: (teamId: string) => void;
+  /** False until the server has delivered the first payload this session. */
+  loaded: boolean;
 } {
   const [raw] = useShinyOutput<TournamentPick | undefined>(
     "tournament_pick",
@@ -25,5 +27,5 @@ export function useTournamentPick(): {
     [sendPayload]
   );
   const pick: TournamentPick | null = raw && raw.team_id ? raw : null;
-  return { pick, setPick };
+  return { pick, setPick, loaded: raw !== undefined };
 }

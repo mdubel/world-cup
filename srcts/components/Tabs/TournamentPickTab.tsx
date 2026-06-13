@@ -16,6 +16,7 @@ export function TournamentPickTab() {
     fixtures: { teams, tournamentLockUtc, loaded },
     tournamentPick: pick,
     setTournamentPick: setPick,
+    userDataLoaded,
   } = useAppData();
   const tz = useUserTz();
   const now = useNow(1000);
@@ -117,7 +118,10 @@ export function TournamentPickTab() {
       <ContinentGrid
         teams={teams}
         selectedTeamId={pick?.team_id ?? null}
-        disabled={locked}
+        // Gate on userDataLoaded too — otherwise a quick click during
+        // the initial websocket load could submit a champion pick before
+        // the user's existing pick has arrived, silently overwriting it.
+        disabled={locked || !userDataLoaded}
         onSelect={(teamId) => setPick(teamId)}
       />
 

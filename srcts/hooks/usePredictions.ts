@@ -14,6 +14,13 @@ export function usePredictions(): {
     pick: MatchPick,
     advancingTeam: Side | null
   ) => void;
+  /**
+   * False until the server has delivered the first `predictions` payload
+   * for this session. Used to gate action buttons so an impatient user
+   * can't click before their existing picks have arrived and accidentally
+   * overwrite them.
+   */
+  loaded: boolean;
 } {
   const [predictions] = useShinyOutput<PredictionsMap | undefined>(
     "predictions",
@@ -30,5 +37,9 @@ export function usePredictions(): {
     },
     [sendPayload]
   );
-  return { predictions: predictions ?? {}, setPrediction };
+  return {
+    predictions: predictions ?? {},
+    setPrediction,
+    loaded: predictions !== undefined,
+  };
 }

@@ -35,6 +35,7 @@ export function BracketDialog({
     pendingTrackerMatches,
     predictions,
     setPrediction,
+    userDataLoaded,
   } = useAppData();
   const now = useNow(60_000);
 
@@ -113,6 +114,7 @@ export function BracketDialog({
               current={trackerState}
               onChange={(state) => setTracker(match.match_id, state)}
               pending={pendingTrackerMatches.has(match.match_id)}
+              disabled={!userDataLoaded}
             />
           </div>
 
@@ -131,7 +133,7 @@ export function BracketDialog({
               <PredictionPicker
                 match={match}
                 prediction={prediction}
-                disabled={past}
+                disabled={past || !userDataLoaded}
                 onSubmit={(pick, advancing) =>
                   setPrediction(match.match_id, pick, advancing)
                 }
