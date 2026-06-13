@@ -35,7 +35,17 @@ empty_leaderboard_snapshot <- function() {
 }
 
 read_leaderboard_snapshot <- function() {
-  pin_read_or(pin_name("leaderboard"), NULL)
+  snap <- pin_read_or(pin_name("leaderboard"), NULL)
+  # Safety net: prettify display_name on read so a stale snapshot written
+  # before pretty_display_name() landed surfaces human names anyway. The
+  # next refresh cycle will rebuild with already-pretty names; this
+  # post-process is idempotent so re-prettifying is a no-op then.
+  if (!is.null(snap) && !is.null(snap$rows) && nrow(snap$rows) > 0 &&
+      exists("pretty_display_name")) {
+    snap$rows$display_name <- vapply(snap$rows$display_name,
+                                     pretty_display_name, character(1))
+  }
+  snap
 }
 
 # Best-effort snapshot write. Uses the lock without verify since the only

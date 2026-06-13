@@ -13,7 +13,10 @@ empty_users_df <- function() {
 
 # Defensive read: backfill any missing columns (older user pins lack newer
 # fields) AND restore the canonical column order so downstream positional
-# operations (rbind, [<-, etc.) line up correctly.
+# operations (rbind, [<-, etc.) line up correctly. Also runs every row's
+# display_name through pretty_display_name() so existing snake_case rows
+# (written before the prettifier landed) surface as human-readable names
+# everywhere the dataframe is consumed — leaderboard, admin stats, etc.
 read_users <- function() {
   df <- pin_read_or(pin_name("users"), empty_users_df())
   if (!"theme" %in% names(df)) df$theme <- NA_character_
@@ -21,7 +24,12 @@ read_users <- function() {
   if (!"favorite_team_id" %in% names(df)) df$favorite_team_id <- NA_character_
   canon <- names(empty_users_df())
   extra <- setdiff(names(df), canon)
-  df[, c(canon, extra), drop = FALSE]
+  df <- df[, c(canon, extra), drop = FALSE]
+  if (nrow(df) > 0 && exists("pretty_display_name")) {
+    df$display_name <- vapply(df$display_name, pretty_display_name,
+                              character(1))
+  }
+  df
 }
 
 touch_user <- function(uid, display_name, tz = NA_character_) {
