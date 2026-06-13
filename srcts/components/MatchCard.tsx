@@ -117,13 +117,21 @@ function TeamRow({
         lostInRegulation && "opacity-60"
       )}
     >
-      <TeamFlag crest={crest} code={code} name={name} size='lg' />
-      <div className='min-w-0'>
-        <div className='font-display text-lg sm:text-2xl tracking-wide leading-none truncate'>
+      <TeamFlag
+        crest={crest}
+        code={code}
+        name={name}
+        size='lg'
+        className='!h-10 !w-10 sm:!h-16 sm:!w-16'
+      />
+      <div className='min-w-0 flex-1'>
+        <div className='font-display text-base sm:text-2xl tracking-wide leading-none truncate'>
           {name ?? "TBD"}
         </div>
         {code && (
-          <div className='text-[11px] font-mono text-ink-soft mt-1'>{code}</div>
+          <div className='text-[11px] font-mono text-ink-soft mt-1 truncate'>
+            {code}
+          </div>
         )}
       </div>
     </div>
@@ -216,30 +224,35 @@ export function MatchCard({
           <KickoffBadge kickoffUtc={match.kickoff_utc} />
         </div>
 
-        <div className='grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4'>
+        {/* minmax(0,1fr) instead of 1fr lets the side columns shrink below
+            their content's intrinsic min-width on narrow screens — otherwise
+            the team name + code text forces the column wider than the
+            container and the middle score column overlaps it. */}
+        <div className='grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4'>
           <TeamRow side='HOME' match={match} />
           <MatchScore match={match} hidden={hidden} />
-          <div className='flex justify-end'>
-            <div className='flex flex-row-reverse items-center gap-2 sm:gap-3 min-w-0'>
+          <div className='flex justify-end min-w-0'>
+            <div className='flex flex-row-reverse items-center gap-2 sm:gap-3 min-w-0 w-full'>
               <TeamFlag
                 crest={match.away_team_crest}
                 code={match.away_team_code}
                 name={match.away_team_name}
                 size='lg'
+                className='!h-10 !w-10 sm:!h-16 sm:!w-16'
               />
               <div
                 className={cn(
-                  "min-w-0 text-right",
+                  "min-w-0 flex-1 text-right",
                   match.status === "FINISHED" &&
                     match.winner === "HOME" &&
                     "opacity-60"
                 )}
               >
-                <div className='font-display text-lg sm:text-2xl tracking-wide leading-none truncate'>
+                <div className='font-display text-base sm:text-2xl tracking-wide leading-none truncate'>
                   {match.away_team_name ?? "TBD"}
                 </div>
                 {match.away_team_code && (
-                  <div className='text-[11px] font-mono text-ink-soft mt-1'>
+                  <div className='text-[11px] font-mono text-ink-soft mt-1 truncate'>
                     {match.away_team_code}
                   </div>
                 )}
