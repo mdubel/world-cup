@@ -27,14 +27,31 @@ compute_admin_stats <- function(fixtures_df, users_df, tpicks_df) {
       with_group_picks = 0L,
       with_knockout_picks = 0L,
       with_favorite = 0L,
-      with_champion = 0L
+      with_champion = 0L,
+      active = 0L,
+      dormant = 0L,
+      inactive = 0L
     ),
+    kicked_off_count = 0L,
     computed_at_utc = iso_utc(now_utc())
   )
 
   if (is.null(users_df) || nrow(users_df) == 0) {
     return(empty)
   }
+
+  # Pre-compute the set of matches whose kickoff is in the past — these are
+  # the matches where picks are LOCKED, i.e. anyone who didn't pick by now
+  # missed the scoring window. Categorisation hinges on whether each user
+  # placed a pick for every such match.
+  now <- now_utc()
+  kicked_off_ids <- if (!is.null(fixtures_df) && nrow(fixtures_df) > 0) {
+    fixtures_df$match_id[fixtures_df$kickoff_utc <= now &
+                          !is.na(fixtures_df$kickoff_utc)]
+  } else {
+    character()
+  }
+  kicked_off_count <- length(kicked_off_ids)
 
   n <- nrow(users_df)
   rows <- vector("list", n)
@@ -48,6 +65,8 @@ compute_admin_stats <- function(fixtures_df, users_df, tpicks_df) {
     # 72 group + 32 knockout totals separately.
     group_picks <- 0L
     knockout_picks <- 0L
+    total_picks <- if (is.null(preds)) 0L else as.integer(nrow(preds))
+    picks_kicked_off <- 0L
     if (!is.null(preds) && nrow(preds) > 0 &&
         !is.null(fixtures_df) && nrow(fixtures_df) > 0) {
       lookup <- fixtures_df[, c("match_id", "stage")]
@@ -56,6 +75,23 @@ compute_admin_stats <- function(fixtures_df, users_df, tpicks_df) {
       knockout_picks <- as.integer(sum(is_knockout_stage(merged$stage),
                                         na.rm = TRUE))
       group_picks <- as.integer(nrow(merged) - knockout_picks)
+      picks_kicked_off <- as.integer(sum(preds$match_id %in% kicked_off_ids))
+    }
+
+    # Categorisation:
+    #   active   — picked every match that has already kicked off (full
+    #              opportunity to score). With zero kicked-off matches yet,
+    #              having any forward-looking pick counts as engaged.
+    #   dormant  — placed some picks but missed at least one locked match.
+    #   inactive — opened the app (touch_user wrote a users-pin row) but
+    #              never submitted a single prediction.
+    category <- if (total_picks == 0L) {
+      "inactive"
+    } else if (kicked_off_count == 0L ||
+               picks_kicked_off >= kicked_off_count) {
+      "active"
+    } else {
+      "dormant"
     }
 
     wl <- if (!is.null(track) && nrow(track) > 0)
@@ -96,13 +132,15 @@ compute_admin_stats <- function(fixtures_df, users_df, tpicks_df) {
       favorite_team_name = favorite_name,
       group_picks = group_picks,
       knockout_picks = knockout_picks,
+      picks_kicked_off = picks_kicked_off,
       tracker_watch_later = as.integer(wl),
       tracker_watched = as.integer(wd),
       tracker_skipped = as.integer(sk),
       champion_pick_team_id = if (is.null(tpick)) NA_character_ else tpick$team_id,
       champion_pick_team_name = if (is.null(tpick)) NA_character_ else tpick$team_name,
       champion_pick_at_utc = if (is.null(tpick)) NA_character_
-                              else iso_utc(tpick$updated_at_utc)
+                              else iso_utc(tpick$updated_at_utc),
+      category = category
     )
   }
 
@@ -118,13 +156,20 @@ compute_admin_stats <- function(fixtures_df, users_df, tpicks_df) {
       !is.na(r$favorite_team_id) && nzchar(r$favorite_team_id),
       logical(1)))),
     with_champion = as.integer(sum(vapply(rows, function(r)
-      !is.na(r$champion_pick_team_id), logical(1))))
+      !is.na(r$champion_pick_team_id), logical(1)))),
+    active = as.integer(sum(vapply(rows, function(r)
+      identical(r$category, "active"), logical(1)))),
+    dormant = as.integer(sum(vapply(rows, function(r)
+      identical(r$category, "dormant"), logical(1)))),
+    inactive = as.integer(sum(vapply(rows, function(r)
+      identical(r$category, "inactive"), logical(1))))
   )
 
   list(
     total_users = as.integer(n),
     users = rows,
     counts = counts,
+    kicked_off_count = as.integer(kicked_off_count),
     computed_at_utc = iso_utc(now_utc())
   )
 }

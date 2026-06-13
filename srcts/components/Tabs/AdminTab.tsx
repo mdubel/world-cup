@@ -5,7 +5,7 @@ import { useAppData } from "@/contexts/AppData";
 import { useUserTz } from "@/contexts/Timezone";
 import { useAdminStats } from "@/hooks/useAdminStats";
 import { formatLocal } from "@/lib/time";
-import type { AdminUserRow, Team } from "@/lib/types";
+import type { AdminCategory, AdminUserRow, Team } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   ChevronDown,
@@ -51,6 +51,7 @@ function SummaryCard({ label, value, hint, accent = "ink" }: SummaryCardProps) {
 }
 
 type SortKey =
+  | "category"
   | "display_name"
   | "first_seen_utc"
   | "last_seen_utc"
@@ -64,10 +65,54 @@ interface SortState {
   dir: "asc" | "desc";
 }
 
-function compareUsers(a: AdminUserRow, b: AdminUserRow, sort: SortState): number {
+// active first, then dormant, then inactive — used both as the always-on
+// primary sort and as the explicit "category" sort.
+const CATEGORY_ORDER: Record<AdminCategory, number> = {
+  active: 0,
+  dormant: 1,
+  inactive: 2,
+};
+
+const CATEGORY_LABEL: Record<AdminCategory, string> = {
+  active: "Active",
+  dormant: "Dormant",
+  inactive: "Inactive",
+};
+
+// Tailwind classes for the badge (left) and the row's left border (right).
+const CATEGORY_STYLE: Record<AdminCategory, { badge: string; row: string }> = {
+  active: {
+    badge: "bg-pitch/15 text-pitch border border-pitch/40",
+    row: "border-l-4 border-l-pitch",
+  },
+  dormant: {
+    badge: "bg-mustard/20 text-ink border border-mustard/60",
+    row: "border-l-4 border-l-mustard",
+  },
+  inactive: {
+    badge: "bg-paper-soft text-ink-soft border border-paper-edge",
+    row: "border-l-4 border-l-paper-edge",
+  },
+};
+
+function compareUsers(
+  a: AdminUserRow,
+  b: AdminUserRow,
+  sort: SortState
+): number {
+  // Category always groups first — the user asked for active → dormant →
+  // inactive ordering. Within a category, the explicit sort key applies.
+  const ca = CATEGORY_ORDER[a.category] ?? 99;
+  const cb = CATEGORY_ORDER[b.category] ?? 99;
+  if (ca !== cb) return ca - cb;
+
   const dir = sort.dir === "asc" ? 1 : -1;
   const get = (r: AdminUserRow): string | number | null => {
     switch (sort.key) {
+      case "category":
+        // Already grouped by category above; tie-break by last_seen desc
+        // (newest first) so the most recently active user surfaces.
+        return r.last_seen_utc ?? "";
       case "display_name":
         return r.display_name.toLowerCase();
       case "first_seen_utc":
@@ -85,13 +130,16 @@ function compareUsers(a: AdminUserRow, b: AdminUserRow, sort: SortState): number
         return r.champion_pick_team_name ?? "";
     }
   };
+  // "category" sort secondary defaults to last_seen DESC regardless of dir
+  // so clicking the column header twice doesn't reverse the grouping.
+  const effectiveDir = sort.key === "category" ? -1 : dir;
   const va = get(a);
   const vb = get(b);
   if (va === null && vb === null) return 0;
   if (va === null) return 1;
   if (vb === null) return -1;
-  if (va < vb) return -1 * dir;
-  if (va > vb) return 1 * dir;
+  if (va < vb) return -1 * effectiveDir;
+  if (va > vb) return 1 * effectiveDir;
   return 0;
 }
 
@@ -135,9 +183,11 @@ export function AdminTab() {
   } = useAppData();
   const tz = useUserTz();
 
+  // Default to the category column so the visible ordering matches the
+  // grouping (compareUsers already always groups by category first).
   const [sort, setSort] = useState<SortState>({
-    key: "last_seen_utc",
-    dir: "desc",
+    key: "category",
+    dir: "asc",
   });
 
   const onSort = (key: SortKey) => {
@@ -213,6 +263,73 @@ export function AdminTab() {
           {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
+
+      {/* Engagement card spans full width on its own row — it's the row the
+          user is most likely to glance at first, and the three coloured
+          numbers don't fit cleanly into the small SummaryCard grid. */}
+      <Card className='border-paper-edge bg-paper'>
+        <CardContent className='p-4'>
+          <div className='flex items-baseline justify-between flex-wrap gap-2'>
+            <p className='font-display tracking-widest uppercase text-xs text-ink'>
+              Engagement
+            </p>
+            <span className='text-[10px] text-ink-soft font-mono'>
+              {stats.kicked_off_count}{" "}
+              {stats.kicked_off_count === 1 ? "match" : "matches"} kicked off
+              so far
+            </span>
+          </div>
+          <div className='grid grid-cols-3 gap-3 mt-3'>
+            {(
+              [
+                {
+                  key: "active",
+                  value: c.active,
+                  hint: "picked every locked match",
+                },
+                {
+                  key: "dormant",
+                  value: c.dormant,
+                  hint: "missed at least one",
+                },
+                {
+                  key: "inactive",
+                  value: c.inactive,
+                  hint: "no picks yet",
+                },
+              ] as const
+            ).map(({ key, value, hint }) => {
+              const style = CATEGORY_STYLE[key];
+              return (
+                <div
+                  key={key}
+                  className={cn(
+                    "rounded-sm px-3 py-2 bg-paper-soft",
+                    style.row
+                  )}
+                >
+                  <div className='flex items-baseline justify-between gap-2'>
+                    <span
+                      className={cn(
+                        "inline-block px-1.5 py-0.5 rounded-sm font-display tracking-wider uppercase text-[10px]",
+                        style.badge
+                      )}
+                    >
+                      {CATEGORY_LABEL[key]}
+                    </span>
+                    <span className='font-display text-2xl tracking-wide text-ink tabular-nums'>
+                      {value}
+                    </span>
+                  </div>
+                  <p className='text-[10px] text-ink-soft mt-1 leading-snug'>
+                    {hint}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3'>
         <SummaryCard
@@ -301,6 +418,12 @@ export function AdminTab() {
               <thead className='border-b border-paper-edge'>
                 <tr>
                   <Th
+                    label='Group'
+                    sortKey='category'
+                    current={sort}
+                    onSort={onSort}
+                  />
+                  <Th
                     label='User'
                     sortKey='display_name'
                     current={sort}
@@ -319,7 +442,7 @@ export function AdminTab() {
                     onSort={onSort}
                   />
                   <Th
-                    label='Group'
+                    label='Group picks'
                     sortKey='group_picks'
                     current={sort}
                     onSort={onSort}
@@ -354,7 +477,7 @@ export function AdminTab() {
                 {sortedUsers.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className='py-6 text-center text-ink-soft text-sm'
                     >
                       No users yet.
@@ -372,11 +495,31 @@ export function AdminTab() {
                     const champion = u.champion_pick_team_id
                       ? teamsById.get(u.champion_pick_team_id) ?? null
                       : null;
+                    const style = CATEGORY_STYLE[u.category];
+                    const dormantTitle =
+                      u.category === "dormant" && stats.kicked_off_count > 0
+                        ? `${u.picks_kicked_off} of ${stats.kicked_off_count} locked matches picked`
+                        : undefined;
                     return (
                       <tr
                         key={u.user_id}
-                        className='border-t border-paper-edge/40 hover:bg-paper-soft transition-colors'
+                        className={cn(
+                          "border-t border-paper-edge/40 hover:bg-paper-soft transition-colors",
+                          style.row,
+                          u.category === "inactive" && "opacity-70"
+                        )}
                       >
+                        <td className='py-2 px-2'>
+                          <span
+                            className={cn(
+                              "inline-block px-1.5 py-0.5 rounded-sm font-display tracking-wider uppercase text-[10px] whitespace-nowrap",
+                              style.badge
+                            )}
+                            title={dormantTitle}
+                          >
+                            {CATEGORY_LABEL[u.category]}
+                          </span>
+                        </td>
                         <td className='py-2 px-2'>
                           <div className='font-display tracking-wide text-sm'>
                             {u.display_name}

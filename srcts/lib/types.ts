@@ -128,6 +128,8 @@ export interface CurrentUser {
   favorite_team_id: string | null;
 }
 
+export type AdminCategory = "active" | "dormant" | "inactive";
+
 export interface AdminUserRow {
   user_id: string;
   display_name: string;
@@ -139,12 +141,14 @@ export interface AdminUserRow {
   favorite_team_name: string | null;
   group_picks: number;
   knockout_picks: number;
+  picks_kicked_off: number;
   tracker_watch_later: number;
   tracker_watched: number;
   tracker_skipped: number;
   champion_pick_team_id: string | null;
   champion_pick_team_name: string | null;
   champion_pick_at_utc: string | null;
+  category: AdminCategory;
 }
 
 export interface AdminStats {
@@ -156,7 +160,11 @@ export interface AdminStats {
     with_knockout_picks: number;
     with_favorite: number;
     with_champion: number;
+    active: number;
+    dormant: number;
+    inactive: number;
   };
+  kicked_off_count: number;
   computed_at_utc: string;
   error?: string;
 }
