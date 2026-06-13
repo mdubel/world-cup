@@ -113,13 +113,13 @@ function TeamRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 min-w-0",
+        "flex items-center gap-2 sm:gap-3 min-w-0",
         lostInRegulation && "opacity-60"
       )}
     >
       <TeamFlag crest={crest} code={code} name={name} size='lg' />
       <div className='min-w-0'>
-        <div className='font-display text-2xl tracking-wide leading-none truncate'>
+        <div className='font-display text-lg sm:text-2xl tracking-wide leading-none truncate'>
           {name ?? "TBD"}
         </div>
         {code && (
@@ -185,7 +185,7 @@ export function MatchCard({
       {/* Decorative corner band */}
       <div className='absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-crimson via-mustard to-pitch opacity-70' />
 
-      <CardContent className='py-4 px-4 sm:px-5 space-y-4'>
+      <CardContent className='py-3 px-3 sm:py-4 sm:px-5 space-y-3 sm:space-y-4'>
         <div className='flex items-start justify-between gap-3'>
           <div className='flex items-center gap-2 flex-wrap'>
             <span className='stage-chip text-crimson'>
@@ -216,11 +216,11 @@ export function MatchCard({
           <KickoffBadge kickoffUtc={match.kickoff_utc} />
         </div>
 
-        <div className='grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-4'>
+        <div className='grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4'>
           <TeamRow side='HOME' match={match} />
           <MatchScore match={match} hidden={hidden} />
           <div className='flex justify-end'>
-            <div className='flex flex-row-reverse items-center gap-3 min-w-0'>
+            <div className='flex flex-row-reverse items-center gap-2 sm:gap-3 min-w-0'>
               <TeamFlag
                 crest={match.away_team_crest}
                 code={match.away_team_code}
@@ -235,7 +235,7 @@ export function MatchCard({
                     "opacity-60"
                 )}
               >
-                <div className='font-display text-2xl tracking-wide leading-none truncate'>
+                <div className='font-display text-lg sm:text-2xl tracking-wide leading-none truncate'>
                   {match.away_team_name ?? "TBD"}
                 </div>
                 {match.away_team_code && (

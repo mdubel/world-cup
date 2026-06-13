@@ -190,6 +190,13 @@ export function BracketTab() {
         <SpoilerBanner description='Filled-in slots reveal the winner of feeder matches. Slots downstream of your unwatched matches are masked until you reveal.' />
       )}
 
+      {/* The bracket is fundamentally wide (5 stages + trophy). On phones we
+          keep the horizontal-scroll fallback but give the user a hint they
+          can drag the columns into view. */}
+      <p className='lg:hidden text-[10px] font-display tracking-widest uppercase text-ink-soft'>
+        Swipe sideways to see all stages →
+      </p>
+
       {/*
         Full-bleed on lg+: break out of the parent's max-w-6xl container so
         the bracket can use the full viewport width on wide screens.

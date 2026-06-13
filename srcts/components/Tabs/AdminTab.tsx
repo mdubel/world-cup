@@ -279,7 +279,7 @@ export function AdminTab() {
               so far
             </span>
           </div>
-          <div className='grid grid-cols-3 gap-3 mt-3'>
+          <div className='grid grid-cols-3 gap-2 sm:gap-3 mt-3'>
             {(
               [
                 {
@@ -304,11 +304,11 @@ export function AdminTab() {
                 <div
                   key={key}
                   className={cn(
-                    "rounded-sm px-3 py-2 bg-paper-soft",
+                    "rounded-sm px-2 sm:px-3 py-2 bg-paper-soft",
                     style.row
                   )}
                 >
-                  <div className='flex items-baseline justify-between gap-2'>
+                  <div className='flex flex-wrap items-baseline justify-between gap-1 sm:gap-2'>
                     <span
                       className={cn(
                         "inline-block px-1.5 py-0.5 rounded-sm font-display tracking-wider uppercase text-[10px]",
@@ -317,7 +317,7 @@ export function AdminTab() {
                     >
                       {CATEGORY_LABEL[key]}
                     </span>
-                    <span className='font-display text-2xl tracking-wide text-ink tabular-nums'>
+                    <span className='font-display text-xl sm:text-2xl tracking-wide text-ink tabular-nums'>
                       {value}
                     </span>
                   </div>

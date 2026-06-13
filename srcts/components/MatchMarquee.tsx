@@ -17,8 +17,8 @@ function MarqueeTile({ match, now, tz }: { match: Match; now: number; tz: string
   return (
     <div
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-md border-2 border-paper-edge bg-paper-soft shrink-0",
-        "min-w-[280px]",
+        "flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-md border-2 border-paper-edge bg-paper-soft shrink-0",
+        "min-w-[220px] sm:min-w-[280px]",
         isLive && "border-crimson bg-crimson/5"
       )}
     >

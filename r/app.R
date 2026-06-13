@@ -301,6 +301,12 @@ shinyApp(
     title = "World Cup 2026",
     # Extra head content gets hoisted into <head> by htmltools.
     tags$head(
+      # Without this, mobile browsers render the page at a ~980px virtual
+      # width and zoom out — every sm: breakpoint is wasted because the
+      # device thinks it's a wide screen. With it, the layout actually
+      # responds to the phone's real width.
+      tags$meta(name = "viewport",
+                content = "width=device-width, initial-scale=1, viewport-fit=cover"),
       # Cache-bust query string forces browsers (especially Safari) to fetch
       # the favicon at least once instead of clinging to the cached "no
       # favicon" state from the pre-favicon period. Bump the version if the

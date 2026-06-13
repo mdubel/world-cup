@@ -48,18 +48,18 @@ export function Header({ user }: HeaderProps) {
         <div className='bg-mustard' />
         <div className='bg-pitch' />
       </div>
-      <div className='max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4'>
+      <div className='max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-4'>
         <div className='flex items-baseline gap-3 min-w-0'>
           <div>
-            <h1 className='tournament-title text-3xl sm:text-4xl text-paper'>
+            <h1 className='tournament-title text-2xl sm:text-4xl text-paper'>
               <span className='text-mustard'>FIFA</span> 2026
             </h1>
-            <p className='font-display text-sm tracking-[0.3em] text-paper-edge -mt-1'>
+            <p className='hidden sm:block font-display text-sm tracking-[0.3em] text-paper-edge -mt-1'>
               World&nbsp;Cup&nbsp;·&nbsp;Office&nbsp;Pool
             </p>
           </div>
         </div>
-        <div className='flex items-center gap-4 shrink-0'>
+        <div className='flex items-center gap-2 sm:gap-4 shrink-0'>
           {/* Settings summaries — left-to-right: Theme · Times · Team */}
           <SummaryBlock label='Theme'>
             {theme === "dark" ? "Dark" : "Light"}
@@ -85,14 +85,14 @@ export function Header({ user }: HeaderProps) {
           </SummaryBlock>
 
           {user ? (
-            <div className='flex items-center gap-2'>
-              <Badge className='bg-mustard text-ink hover:bg-mustard font-display tracking-wide text-sm px-3 py-1'>
+            <div className='flex items-center gap-2 min-w-0'>
+              <Badge className='bg-mustard text-ink hover:bg-mustard font-display tracking-wide text-xs sm:text-sm px-2 sm:px-3 py-1 max-w-[40vw] sm:max-w-none truncate'>
                 {user.display_name}
               </Badge>
               {user.is_dev && (
                 <Badge
                   variant='outline'
-                  className='border-paper-edge text-paper-edge text-[10px]'
+                  className='border-paper-edge text-paper-edge text-[10px] hidden sm:inline-flex'
                 >
                   dev
                 </Badge>

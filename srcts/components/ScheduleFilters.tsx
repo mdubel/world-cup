@@ -213,7 +213,7 @@ export function ScheduleFilters({
           selected={filters.groups}
           onToggle={toggleGroup}
           onClear={clearGroups}
-          contentClassName='w-56'
+          contentClassName='w-56 max-w-[calc(100vw-2rem)]'
           emptyText='No groups in the schedule yet.'
         />
         <FilterPopover
@@ -222,7 +222,7 @@ export function ScheduleFilters({
           selected={filters.stages}
           onToggle={toggleStage}
           onClear={clearStages}
-          contentClassName='w-56'
+          contentClassName='w-56 max-w-[calc(100vw-2rem)]'
           emptyText='No stages in the schedule yet.'
         />
         <FilterPopover
@@ -231,7 +231,7 @@ export function ScheduleFilters({
           selected={filters.teams}
           onToggle={toggleTeam}
           onClear={clearTeams}
-          contentClassName='w-[320px]'
+          contentClassName='w-[320px] max-w-[calc(100vw-2rem)]'
           emptyText='No teams in the schedule yet.'
           topAction={
             favoriteTeam ? (

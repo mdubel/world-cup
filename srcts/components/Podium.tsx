@@ -37,7 +37,7 @@ const STEP_THEME: Record<
     accent: "from-mustard/30 to-mustard/0",
     label: "Champion",
     icon: Trophy,
-    height: "min-h-[230px] sm:min-h-[260px]",
+    height: "min-h-[180px] sm:min-h-[260px]",
     iconClass: "text-mustard",
     rankBgClass: "bg-mustard text-ink",
   },
@@ -46,7 +46,7 @@ const STEP_THEME: Record<
     accent: "from-ink/15 to-ink/0",
     label: "Runner-up",
     icon: Medal,
-    height: "min-h-[200px] sm:min-h-[220px]",
+    height: "min-h-[160px] sm:min-h-[220px]",
     iconClass: "text-ink",
     rankBgClass: "bg-ink text-paper",
   },
@@ -55,7 +55,7 @@ const STEP_THEME: Record<
     accent: "from-bronze/25 to-bronze/0",
     label: "Third",
     icon: Medal,
-    height: "min-h-[180px] sm:min-h-[200px]",
+    height: "min-h-[150px] sm:min-h-[200px]",
     iconClass: "text-bronze",
     rankBgClass: "bg-bronze text-paper",
   },
@@ -86,21 +86,21 @@ function PodiumStep({ rank, row, isMe, masked, team, onClick }: PodiumStepProps)
       {rank === 1 && (
         <div className='absolute inset-0 wc26-gold-shimmer pointer-events-none' />
       )}
-      <div className='relative p-4 flex flex-col h-full gap-3'>
+      <div className='relative p-3 sm:p-4 flex flex-col h-full gap-2 sm:gap-3'>
         <div className='flex items-center justify-between gap-2'>
           <span
             className={cn(
-              "font-display tracking-widest text-xs uppercase px-2 py-0.5 rounded-sm",
+              "font-display tracking-widest text-[10px] sm:text-xs uppercase px-2 py-0.5 rounded-sm",
               theme.rankBgClass
             )}
           >
             {theme.label}
           </span>
-          <Icon className={cn("h-7 w-7", theme.iconClass)} strokeWidth={1.5} />
+          <Icon className={cn("h-5 w-5 sm:h-7 sm:w-7", theme.iconClass)} strokeWidth={1.5} />
         </div>
 
         <div className='flex items-baseline gap-2'>
-          <span className='font-display text-5xl tracking-widest leading-none text-ink'>
+          <span className='font-display text-4xl sm:text-5xl tracking-widest leading-none text-ink'>
             #{rank}
           </span>
           {isMe && (
@@ -110,12 +110,12 @@ function PodiumStep({ rank, row, isMe, masked, team, onClick }: PodiumStepProps)
           )}
         </div>
 
-        <div className='font-display text-2xl tracking-wide truncate'>
+        <div className='font-display text-xl sm:text-2xl tracking-wide truncate'>
           {row.display_name}
         </div>
 
         <div className='flex items-baseline gap-2 mt-auto'>
-          <span className='font-mono text-3xl font-bold tabular-nums'>
+          <span className='font-mono text-2xl sm:text-3xl font-bold tabular-nums'>
             {masked ? "••" : row.total}
           </span>
           <span className='font-display tracking-widest uppercase text-[10px] text-ink-soft'>
