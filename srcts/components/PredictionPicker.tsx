@@ -8,6 +8,14 @@ interface PredictionPickerProps {
   prediction: Prediction | undefined;
   disabled: boolean;
   onSubmit: (pick: MatchPick, advancingTeam: Side | null) => void;
+  /**
+   * `compact` shrinks the picker into a HOME/DRAW/AWAY label row that fits
+   * alongside the tracker buttons inside a MatchCard's action bar. The
+   * non-compact form (default) renders team flags + names inside the
+   * buttons — used by BracketDialog where there's more room and the user
+   * benefits from seeing who's playing without scrolling back up.
+   */
+  compact?: boolean;
 }
 
 interface PickButtonProps {
@@ -15,6 +23,7 @@ interface PickButtonProps {
   disabled: boolean;
   onClick: () => void;
   variant: "team" | "draw";
+  compact?: boolean;
   children: React.ReactNode;
 }
 
@@ -23,6 +32,7 @@ function PickButton({
   disabled,
   onClick,
   variant,
+  compact,
   children,
 }: PickButtonProps) {
   return (
@@ -31,9 +41,12 @@ function PickButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex-1 min-w-0 px-3 py-2.5 rounded-sm border-2 transition-all",
-        "font-display tracking-wider uppercase text-sm",
+        "min-w-0 rounded-sm border-2 transition-all",
+        "font-display tracking-wider uppercase",
         "disabled:cursor-not-allowed disabled:opacity-50",
+        compact
+          ? "px-2.5 py-1.5 text-xs"
+          : "flex-1 px-3 py-2.5 text-sm",
         active
           ? variant === "team"
             ? "border-crimson bg-crimson text-paper shadow-[0_2px_0_var(--ink)]"
@@ -51,6 +64,7 @@ export function PredictionPicker({
   prediction,
   disabled,
   onSubmit,
+  compact = false,
 }: PredictionPickerProps) {
   const isKnockout = isKnockoutStage(match.stage);
   const homeName = match.home_team_name ?? "Home";
@@ -81,49 +95,69 @@ export function PredictionPicker({
   const showAdvancingPicker = isKnockout && currentPick === "DRAW";
 
   return (
-    <div className='flex flex-col gap-3'>
-      <div className='flex flex-wrap gap-2'>
+    <div className={cn("flex flex-col", compact ? "gap-2" : "gap-3")}>
+      <div className='flex flex-wrap gap-1.5 sm:gap-2'>
         <PickButton
           variant='team'
           active={currentPick === "HOME"}
           disabled={disabled}
+          compact={compact}
           onClick={() => handlePickClick("HOME")}
         >
-          <span className='inline-flex items-center gap-2'>
-            <TeamFlag
-              crest={match.home_team_crest}
-              code={match.home_team_code}
-              name={homeName}
-              size='sm'
-              framed={false}
-            />
-            <span className='truncate'>{homeName}</span>
-          </span>
+          {compact ? (
+            // The team identity is already shown big at the top of the card,
+            // so the compact form leans on the side label plus the
+            // colour-state of the button to signal what's being picked.
+            <span aria-label={`Pick ${homeName}`}>Home</span>
+          ) : (
+            <span className='inline-flex items-center gap-2'>
+              <TeamFlag
+                crest={match.home_team_crest}
+                code={match.home_team_code}
+                name={homeName}
+                size='sm'
+                framed={false}
+              />
+              <span className='truncate'>{homeName}</span>
+            </span>
+          )}
         </PickButton>
         <PickButton
           variant='draw'
           active={currentPick === "DRAW"}
           disabled={disabled}
+          compact={compact}
           onClick={() => handlePickClick("DRAW")}
         >
-          {isKnockout ? "Draw → PKs" : "Draw"}
+          {compact
+            ? isKnockout
+              ? "Draw → PKs"
+              : "Draw"
+            : isKnockout
+              ? "Draw → PKs"
+              : "Draw"}
         </PickButton>
         <PickButton
           variant='team'
           active={currentPick === "AWAY"}
           disabled={disabled}
+          compact={compact}
           onClick={() => handlePickClick("AWAY")}
         >
-          <span className='inline-flex items-center gap-2'>
-            <TeamFlag
-              crest={match.away_team_crest}
-              code={match.away_team_code}
-              name={awayName}
-              size='sm'
-              framed={false}
-            />
-            <span className='truncate'>{awayName}</span>
-          </span>
+          {compact ? (
+            <span aria-label={`Pick ${awayName}`}>Away</span>
+          ) : (
+            <span className='inline-flex items-center gap-2'>
+              <TeamFlag
+                crest={match.away_team_crest}
+                code={match.away_team_code}
+                name={awayName}
+                size='sm'
+                framed={false}
+              />
+              <span className='truncate'>{awayName}</span>
+            </span>
+          )}
         </PickButton>
       </div>
       {showAdvancingPicker && (

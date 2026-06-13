@@ -4,7 +4,6 @@ import { AdminTab } from "@/components/Tabs/AdminTab";
 import { BracketTab } from "@/components/Tabs/BracketTab";
 import { GroupsTab } from "@/components/Tabs/GroupsTab";
 import { LeaderboardTab } from "@/components/Tabs/LeaderboardTab";
-import { PredictionsTab } from "@/components/Tabs/PredictionsTab";
 import { RulesTab } from "@/components/Tabs/RulesTab";
 import { TournamentPickTab } from "@/components/Tabs/TournamentPickTab";
 import { TrackerTab } from "@/components/Tabs/TrackerTab";
@@ -32,6 +31,9 @@ export function App() {
           <main className='max-w-6xl mx-auto px-4 sm:px-6 py-6'>
             <Tabs defaultValue='tracker' className='space-y-5'>
               <div className='-mx-4 sm:mx-0'>
+                {/* Single flat tab row, no clusters. Games (was Schedule)
+                    is the landing page and now also handles picks — users
+                    open the app and can bet inline on each match card. */}
                 <TabsList
                   className='
                     bg-paper-soft border-2 border-paper-edge p-1 h-auto
@@ -39,81 +41,51 @@ export function App() {
                     flex-wrap gap-1 sm:gap-0
                   '
                 >
-                  {/*
-                    Two visually-distinct clusters:
-                    - Follow: schedule, groups, bracket (tournament watching)
-                    - Pool:   picks, champion, standings (betting/scoring)
-                    On mobile each cluster wraps to its own full-width row
-                    (5 betting tabs need the room to be tappable). On >= sm
-                    they sit side-by-side with the pool cluster right-aligned.
-                  */}
-                  <div
-                    className='flex w-full sm:w-auto'
-                    aria-label='Tournament tracking'
+                  <TabsTrigger
+                    value='tracker'
+                    className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-ink data-[state=active]:text-paper'
                   >
-                    <TabsTrigger
-                      value='tracker'
-                      className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-ink data-[state=active]:text-paper'
-                    >
-                      Schedule
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value='groups'
-                      className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-pitch data-[state=active]:text-paper'
-                    >
-                      Groups
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value='bracket'
-                      className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-bronze data-[state=active]:text-paper'
-                    >
-                      Bracket
-                    </TabsTrigger>
-                  </div>
-
-                  <div
-                    aria-hidden='true'
-                    className='hidden sm:block w-px self-stretch bg-paper-edge mx-2 my-1'
-                  />
-
-                  <div
-                    className='flex w-full sm:w-auto sm:ml-auto'
-                    aria-label='Office pool'
+                    Games
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value='leaderboard'
+                    className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-crimson data-[state=active]:text-paper'
                   >
+                    Standings
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value='groups'
+                    className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-pitch data-[state=active]:text-paper'
+                  >
+                    Groups
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value='bracket'
+                    className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-bronze data-[state=active]:text-paper'
+                  >
+                    Bracket
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value='winner'
+                    className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-mustard data-[state=active]:text-ink'
+                  >
+                    Champion
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value='rules'
+                    className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-paper data-[state=active]:text-ink data-[state=active]:border-2 data-[state=active]:border-mustard'
+                  >
+                    Rules
+                  </TabsTrigger>
+                  {user?.is_admin && (
                     <TabsTrigger
-                      value='rules'
-                      className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-paper data-[state=active]:text-ink data-[state=active]:border-2 data-[state=active]:border-mustard'
+                      value='admin'
+                      className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-ink data-[state=active]:text-mustard data-[state=active]:border-2 data-[state=active]:border-mustard'
+                      title='Admin dashboard (visible only to allow-listed admins)'
                     >
-                      Rules
+                      Admin
                     </TabsTrigger>
-                    <TabsTrigger
-                      value='predictions'
-                      className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-ink data-[state=active]:text-paper'
-                    >
-                      Picks
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value='winner'
-                      className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-mustard data-[state=active]:text-ink'
-                    >
-                      Champion
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value='leaderboard'
-                      className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-crimson data-[state=active]:text-paper'
-                    >
-                      Standings
-                    </TabsTrigger>
-                    {user?.is_admin && (
-                      <TabsTrigger
-                        value='admin'
-                        className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-ink data-[state=active]:text-mustard data-[state=active]:border-2 data-[state=active]:border-mustard'
-                        title='Admin dashboard (visible only to allow-listed admins)'
-                      >
-                        Admin
-                      </TabsTrigger>
-                    )}
-                  </div>
+                  )}
                 </TabsList>
               </div>
               <TabsContent value='tracker'>
@@ -127,9 +99,6 @@ export function App() {
               </TabsContent>
               <TabsContent value='rules'>
                 <RulesTab />
-              </TabsContent>
-              <TabsContent value='predictions'>
-                <PredictionsTab />
               </TabsContent>
               <TabsContent value='winner'>
                 <TournamentPickTab />

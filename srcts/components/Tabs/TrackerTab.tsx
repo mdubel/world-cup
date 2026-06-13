@@ -30,6 +30,8 @@ export function TrackerTab() {
     fixtures: { matches, loaded },
     tracker,
     setTracker,
+    predictions,
+    setPrediction,
     favoriteTeam,
   } = useAppData();
   const now = useNow(60_000);
@@ -84,6 +86,12 @@ export function TrackerTab() {
 
   return (
     <div className='space-y-4'>
+      <p className='text-xs text-ink-soft'>
+        Track matches and submit picks from the same card — picks save
+        instantly and are editable until kickoff. Group stage 3/1/0,
+        knockout 3/1/0 plus a 1-pt bonus when your named advancing team
+        actually advances.
+      </p>
       <div className='flex flex-wrap items-center gap-2'>
         <div className='flex gap-1 flex-wrap'>
           {STATUS_FILTERS.map((f) => (
@@ -137,6 +145,11 @@ export function TrackerTab() {
                 tracker={tracker}
                 showTrackerControls
                 onTrackerChange={(state) => setTracker(m.match_id, state)}
+                showPredictionControls
+                prediction={predictions[m.match_id]}
+                onPredictionSubmit={(pick, advancing) =>
+                  setPrediction(m.match_id, pick, advancing)
+                }
               />
             ))}
           </div>

@@ -261,17 +261,60 @@ export function MatchCard({
           </div>
         </div>
 
-        {(showTrackerControls || hidden) && (
-          <div className='flex flex-wrap gap-2 pt-2 border-t border-paper-edge/60'>
-            {showTrackerControls && onTrackerChange && (
-              <TrackerStateButtons
-                current={trackerState}
-                onChange={onTrackerChange}
-                pending={trackerPending}
-              />
+        {(showTrackerControls || showPredictionControls || hidden) && (
+          <div className='pt-3 border-t border-paper-edge/60 space-y-2'>
+            {/* Unified action bar: tracker buttons on the left, pick
+                buttons on the right of the same row. On narrow screens
+                the row wraps naturally. */}
+            <div className='flex flex-wrap items-center gap-3'>
+              {showTrackerControls && onTrackerChange && (
+                <TrackerStateButtons
+                  current={trackerState}
+                  onChange={onTrackerChange}
+                  pending={trackerPending}
+                />
+              )}
+              {showPredictionControls &&
+                onPredictionSubmit &&
+                teamsAreKnown && (
+                  <div className='sm:ml-auto'>
+                    <PredictionPicker
+                      match={match}
+                      prediction={prediction}
+                      disabled={past}
+                      onSubmit={onPredictionSubmit}
+                      compact
+                    />
+                  </div>
+                )}
+            </div>
+
+            {showPredictionControls &&
+              onPredictionSubmit &&
+              !teamsAreKnown && (
+                <div className='flex items-center gap-2'>
+                  <LockedBadge reason='bracket' />
+                  <span className='text-xs text-ink-soft'>
+                    Waiting for previous round.
+                  </span>
+                </div>
+              )}
+
+            {showPredictionControls && prediction && (
+              <p className='text-[11px] text-ink-soft font-mono'>
+                Your pick: {prediction.pick}
+                {prediction.advancing_team && prediction.pick === "DRAW"
+                  ? ` · advances: ${
+                      prediction.advancing_team === "HOME"
+                        ? match.home_team_name
+                        : match.away_team_name
+                    }`
+                  : ""}
+              </p>
             )}
+
             {hidden && showTrackerControls && onTrackerChange && (
-              <div className='ml-auto flex gap-3 items-center'>
+              <div className='flex gap-3 items-center flex-wrap'>
                 <button
                   type='button'
                   className='text-xs underline text-crimson font-medium'
@@ -287,38 +330,6 @@ export function MatchCard({
                   Skip — show me
                 </button>
               </div>
-            )}
-          </div>
-        )}
-
-        {showPredictionControls && onPredictionSubmit && (
-          <div className='pt-3 border-t border-paper-edge/60'>
-            {!teamsAreKnown ? (
-              <div className='flex items-center gap-2'>
-                <LockedBadge reason='bracket' />
-                <span className='text-xs text-ink-soft'>
-                  Waiting for previous round.
-                </span>
-              </div>
-            ) : (
-              <PredictionPicker
-                match={match}
-                prediction={prediction}
-                disabled={past}
-                onSubmit={onPredictionSubmit}
-              />
-            )}
-            {prediction && (
-              <p className='text-[11px] text-ink-soft mt-2 font-mono'>
-                Your pick: {prediction.pick}
-                {prediction.advancing_team && prediction.pick === "DRAW"
-                  ? ` · advances: ${
-                      prediction.advancing_team === "HOME"
-                        ? match.home_team_name
-                        : match.away_team_name
-                    }`
-                  : ""}
-              </p>
             )}
           </div>
         )}
