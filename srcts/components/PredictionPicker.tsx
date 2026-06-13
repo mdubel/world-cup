@@ -105,10 +105,15 @@ export function PredictionPicker({
           onClick={() => handlePickClick("HOME")}
         >
           {compact ? (
-            // The team identity is already shown big at the top of the card,
-            // so the compact form leans on the side label plus the
-            // colour-state of the button to signal what's being picked.
-            <span aria-label={`Pick ${homeName}`}>Home</span>
+            // Use the 3-letter team code (already shown under the name at
+            // the top of the card) so the button labels are unambiguous —
+            // "Home" / "Away" forced users to re-read which side was
+            // which. Codes are fixed-width so the layout stays stable
+            // regardless of team name length. Falls back to "Home" only
+            // when the code is missing (TBD bracket slots).
+            <span aria-label={`Pick ${homeName}`}>
+              {match.home_team_code ?? "Home"}
+            </span>
           ) : (
             <span className='inline-flex items-center gap-2'>
               <TeamFlag
@@ -145,7 +150,9 @@ export function PredictionPicker({
           onClick={() => handlePickClick("AWAY")}
         >
           {compact ? (
-            <span aria-label={`Pick ${awayName}`}>Away</span>
+            <span aria-label={`Pick ${awayName}`}>
+              {match.away_team_code ?? "Away"}
+            </span>
           ) : (
             <span className='inline-flex items-center gap-2'>
               <TeamFlag
@@ -170,6 +177,7 @@ export function PredictionPicker({
               type='button'
               disabled={disabled}
               onClick={() => handleAdvancingClick("HOME")}
+              aria-label={`Advances on PKs: ${homeName}`}
               className={cn(
                 "px-3 py-1.5 rounded-sm border-2 text-xs font-display tracking-wider uppercase",
                 currentAdvancing === "HOME"
@@ -177,12 +185,13 @@ export function PredictionPicker({
                   : "border-paper-edge text-ink-soft hover:bg-paper-soft"
               )}
             >
-              {homeName}
+              {compact ? (match.home_team_code ?? homeName) : homeName}
             </button>
             <button
               type='button'
               disabled={disabled}
               onClick={() => handleAdvancingClick("AWAY")}
+              aria-label={`Advances on PKs: ${awayName}`}
               className={cn(
                 "px-3 py-1.5 rounded-sm border-2 text-xs font-display tracking-wider uppercase",
                 currentAdvancing === "AWAY"
@@ -190,7 +199,7 @@ export function PredictionPicker({
                   : "border-paper-edge text-ink-soft hover:bg-paper-soft"
               )}
             >
-              {awayName}
+              {compact ? (match.away_team_code ?? awayName) : awayName}
             </button>
           </div>
         </div>
