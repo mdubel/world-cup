@@ -120,7 +120,9 @@ empty_tournament_picks_df <- function() {
 }
 
 read_tournament_picks <- function() {
-  pin_read_or(pin_name("tournament_picks"), empty_tournament_picks_df())
+  cached_read("tournament_picks", function() {
+    pin_read_or(pin_name("tournament_picks"), empty_tournament_picks_df())
+  })
 }
 
 read_tournament_pick <- function(uid) {
@@ -179,6 +181,7 @@ write_tournament_pick <- function(uid, team_id, fixtures) {
     df <- upsert_row(df, new_row, key = "user_id")
     pin_write_safe(pin_name("tournament_picks"), df)
   })
+  invalidate_cache("tournament_picks")
 
   list(ok = TRUE, team_id = team_id, team_name = team_name)
 }

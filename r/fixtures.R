@@ -17,13 +17,16 @@ empty_fixtures_df <- function() {
 }
 
 read_fixtures <- function() {
-  pin_read_or(pin_name("fixtures"), empty_fixtures_df())
+  cached_read("fixtures", function() {
+    pin_read_or(pin_name("fixtures"), empty_fixtures_df())
+  })
 }
 
 write_fixtures <- function(df) {
   with_lock("fixtures", {
     pin_write_safe(pin_name("fixtures"), df)
   })
+  invalidate_cache("fixtures")
   invisible(df)
 }
 

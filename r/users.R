@@ -18,18 +18,20 @@ empty_users_df <- function() {
 # (written before the prettifier landed) surface as human-readable names
 # everywhere the dataframe is consumed — leaderboard, admin stats, etc.
 read_users <- function() {
-  df <- pin_read_or(pin_name("users"), empty_users_df())
-  if (!"theme" %in% names(df)) df$theme <- NA_character_
-  if (!"tz" %in% names(df)) df$tz <- NA_character_
-  if (!"favorite_team_id" %in% names(df)) df$favorite_team_id <- NA_character_
-  canon <- names(empty_users_df())
-  extra <- setdiff(names(df), canon)
-  df <- df[, c(canon, extra), drop = FALSE]
-  if (nrow(df) > 0 && exists("pretty_display_name")) {
-    df$display_name <- vapply(df$display_name, pretty_display_name,
-                              character(1))
-  }
-  df
+  cached_read("users", function() {
+    df <- pin_read_or(pin_name("users"), empty_users_df())
+    if (!"theme" %in% names(df)) df$theme <- NA_character_
+    if (!"tz" %in% names(df)) df$tz <- NA_character_
+    if (!"favorite_team_id" %in% names(df)) df$favorite_team_id <- NA_character_
+    canon <- names(empty_users_df())
+    extra <- setdiff(names(df), canon)
+    df <- df[, c(canon, extra), drop = FALSE]
+    if (nrow(df) > 0 && exists("pretty_display_name")) {
+      df$display_name <- vapply(df$display_name, pretty_display_name,
+                                character(1))
+    }
+    df
+  })
 }
 
 touch_user <- function(uid, display_name, tz = NA_character_) {
@@ -69,6 +71,7 @@ touch_user <- function(uid, display_name, tz = NA_character_) {
     df <- upsert_row(df, new_row, key = "user_id")
     pin_write_safe(pin_name("users"), df)
   })
+  invalidate_cache("users")
   invisible(NULL)
 }
 
@@ -103,6 +106,7 @@ set_user_setting <- function(uid, field, value) {
     }
     pin_write_safe(pin_name("users"), df)
   })
+  invalidate_cache("users")
   invisible(NULL)
 }
 

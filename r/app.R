@@ -22,6 +22,19 @@ source("seed.R", local = TRUE)
 # run the refresh job manually. No-op on Connect.
 ensure_local_seed()
 
+# Warm the read cache so the very first session served by this worker
+# doesn't pay the full pin_read latency on its initial render — that was
+# the 'Loading fixtures…' state users were waiting on. Errors here are
+# non-fatal: we just fall back to lazy reads inside the server function.
+tryCatch({
+  read_fixtures()
+  read_users()
+  read_tournament_picks()
+  read_leaderboard_snapshot()
+}, error = function(e) {
+  message("Cache warm-up failed (non-fatal): ", conditionMessage(e))
+})
+
 server <- function(input, output, session) {
   user_info <- current_user(session)
   uid <- user_info$id

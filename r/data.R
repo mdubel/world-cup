@@ -34,6 +34,41 @@ pin_owner <- function() {
 
 .board_cache <- new.env(parent = emptyenv())
 
+# Process-level cache for the GLOBAL pins (fixtures, users, tournament_picks,
+# leaderboard snapshot). They change rarely (refresh job ~every 10 min;
+# tournament-pick writes are user-driven) so a short TTL slashes the
+# steady-state pin_read latency that the initial 'Loading fixtures…' state
+# was waiting on.
+#
+# Per-user pins are NOT cached here — each session has a different user, so
+# the cache would mostly miss anyway, and one user's cached state must not
+# leak to another's session.
+#
+# Writes inside this process invalidate their own cache key via
+# invalidate_cache() so the next read in the same session reflects the
+# write. Writes from OTHER processes (scheduled refresh job, other workers)
+# clear via TTL expiry — at worst, scores show GLOBAL_PIN_TTL_SECS later
+# than the job that wrote them.
+.read_cache <- new.env(parent = emptyenv())
+GLOBAL_PIN_TTL_SECS <- 30L
+
+cached_read <- function(key, loader, ttl_secs = GLOBAL_PIN_TTL_SECS) {
+  now <- as.numeric(Sys.time())
+  entry <- .read_cache[[key]]
+  if (!is.null(entry) && entry$expires_at > now) {
+    return(entry$value)
+  }
+  value <- loader()
+  .read_cache[[key]] <- list(value = value, expires_at = now + ttl_secs)
+  value
+}
+
+invalidate_cache <- function(key) {
+  if (exists(key, envir = .read_cache, inherits = FALSE)) {
+    rm(list = key, envir = .read_cache)
+  }
+}
+
 running_on_connect <- function() {
   # POSIT Connect sets at least one of these env vars at runtime. If we don't
   # see any of them, assume we're running locally and use a folder-backed pin
