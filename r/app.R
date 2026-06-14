@@ -296,7 +296,10 @@ server <- function(input, output, session) {
                    list(ok = FALSE, reason = "not_authorized"))
       return()
     }
-    res <- tryCatch(run_refresh(), error = function(e) {
+    # Manual refresh bypasses BOTH the live-window gate and the football-
+    # data throttle — when a dev/admin clicks the button they want a real
+    # full refresh, not a skipped or ESPN-only one.
+    res <- tryCatch(run_refresh(force = TRUE), error = function(e) {
       list(ok = FALSE, error = conditionMessage(e))
     })
     if (isTRUE(res$ok)) {

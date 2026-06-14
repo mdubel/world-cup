@@ -183,18 +183,48 @@ espn_event_to_overlay <- function(ev) {
               else NA_character_
             } else NA_character_
 
-  # PK info: when ESPN marks the match as decided on penalties, we know one
-  # of the competitors has advance=TRUE; that's the pk_winner. Score break-
-  # down for PKs isn't reliably surfaced in the scoreboard endpoint, so we
-  # leave home_score_pk / away_score_pk untouched (NA from football-data).
+  # Penalties + ET classification from status. We treat any status that
+  # implies extra time happened (or is happening) as "had_et"; the PK
+  # shootout score is a separate signal on the competitor object.
+  ET_OR_PK_STATUSES <- c(
+    "STATUS_EXTRA_TIME",
+    "STATUS_END_EXTRA_TIME",
+    "STATUS_PENALTIES",
+    "STATUS_SHOOTOUT",
+    "STATUS_FINAL_AET",
+    "STATUS_AFTER_EXTRA_TIME",
+    "STATUS_FINAL_PEN",
+    "STATUS_AFTER_PENALTIES"
+  )
   is_pen <- grepl("PEN", detail, fixed = TRUE) ||
             identical(status_name, "STATUS_FINAL_PEN") ||
-            identical(status_name, "STATUS_AFTER_PENALTIES")
+            identical(status_name, "STATUS_AFTER_PENALTIES") ||
+            identical(status_name, "STATUS_PENALTIES") ||
+            identical(status_name, "STATUS_SHOOTOUT")
+  had_et <- status_name %in% ET_OR_PK_STATUSES
+
   pk_winner <- if (is_pen) {
     if (isTRUE(home$advance)) "HOME"
     else if (isTRUE(away$advance)) "AWAY"
     else NA_character_
   } else NA_character_
+
+  # ESPN's per-competitor shootoutScore is the PK shootout count (5 for
+  # England vs 3 for Switzerland in the canonical Euro 2024 example). It's
+  # present whenever the match has reached a PK shootout, even before the
+  # final result is decided — perfect for the live "Pens 3–2" display.
+  home_pk <- if (is_pen) parse_score(home$shootoutScore) else NA_integer_
+  away_pk <- if (is_pen) parse_score(away$shootoutScore) else NA_integer_
+
+  # ESPN doesn't separately expose "score at end of regulation" vs "score
+  # at end of ET" — its `score` field is the displayed scoreline at the
+  # time of the request. When the match has reached ET (or PKs, which
+  # require ET to be tied), `score` is the AET-inclusive total. We surface
+  # it as home_score_et so the UI can render the AET badge and the right
+  # number; football-data's slower update will eventually fill the proper
+  # regulation breakdown into home_score_ft.
+  home_et <- if (had_et && !is.na(home_ft)) home_ft else NA_integer_
+  away_et <- if (had_et && !is.na(away_ft)) away_ft else NA_integer_
 
   list(
     kickoff_utc       = parse_espn_date(comp$date %||% ev$date),
@@ -203,6 +233,10 @@ espn_event_to_overlay <- function(ev) {
     status            = our_status,
     home_score_ft     = home_ft,
     away_score_ft     = away_ft,
+    home_score_et     = home_et,
+    away_score_et     = away_et,
+    home_score_pk     = home_pk,
+    away_score_pk     = away_pk,
     winner            = winner,
     pk_winner         = pk_winner,
     completed         = completed,
@@ -264,6 +298,22 @@ overlay_espn_scores <- function(fixtures_df, espn_resp) {
     if (!is.na(ov$away_score_ft) &&
         (is.na(fx$away_score_ft[i]) || fx$away_score_ft[i] != ov$away_score_ft)) {
       fx$away_score_ft[i] <- ov$away_score_ft; changed <- TRUE
+    }
+    if (!is.na(ov$home_score_et) &&
+        (is.na(fx$home_score_et[i]) || fx$home_score_et[i] != ov$home_score_et)) {
+      fx$home_score_et[i] <- ov$home_score_et; changed <- TRUE
+    }
+    if (!is.na(ov$away_score_et) &&
+        (is.na(fx$away_score_et[i]) || fx$away_score_et[i] != ov$away_score_et)) {
+      fx$away_score_et[i] <- ov$away_score_et; changed <- TRUE
+    }
+    if (!is.na(ov$home_score_pk) &&
+        (is.na(fx$home_score_pk[i]) || fx$home_score_pk[i] != ov$home_score_pk)) {
+      fx$home_score_pk[i] <- ov$home_score_pk; changed <- TRUE
+    }
+    if (!is.na(ov$away_score_pk) &&
+        (is.na(fx$away_score_pk[i]) || fx$away_score_pk[i] != ov$away_score_pk)) {
+      fx$away_score_pk[i] <- ov$away_score_pk; changed <- TRUE
     }
     if (!is.na(ov$winner) && !identical(fx$winner[i], ov$winner)) {
       fx$winner[i] <- ov$winner; changed <- TRUE

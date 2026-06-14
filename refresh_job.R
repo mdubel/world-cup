@@ -1,9 +1,15 @@
 #!/usr/bin/env Rscript
 # Scheduled refresh job for the World Cup 2026 app.
-# Deploy to POSIT Connect as a scheduled R script (cron */10 * * * *).
-# Reads the football-data.org competition feed and writes to the shared
-# fixtures pin used by the app. Requires FOOTBALL_DATA_TOKEN and
-# CONNECT_API_KEY env vars on the Connect content item.
+# Deploy to POSIT Connect as a scheduled R script. The recommended cron is
+# `* * * * *` (every minute) — the job self-gates inside run_refresh():
+#   - no live or imminent match → exit silently in ~1 pin read
+#   - match in its live window → pull ESPN (every tick) + football-data
+#     (throttled to once per 10 min)
+# That keeps external API traffic minimal while delivering ~1-min score
+# latency during games. See r/refresh.R for the gate + throttle logic.
+#
+# Requires FOOTBALL_DATA_TOKEN and CONNECT_API_KEY env vars on the Connect
+# content item.
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
 

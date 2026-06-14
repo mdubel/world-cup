@@ -169,7 +169,7 @@ A single app-level "revealed" state (in [`SpoilersContext`](srcts/contexts/Spoil
 Two Connect content items share the same pins board:
 
 1. **App** — published from `r/`. Runs interactively for end users via Connect SSO.
-2. **Scheduled job** — `refresh_job.Rmd` (a thin wrapper around `refresh_job.R`) published as a scheduled R Markdown (cron `*/10 * * * *`). Pulls football-data.org, writes the shared `wc26_fixtures` pin, and rebuilds the `wc26_leaderboard` snapshot so the app reads it in one op.
+2. **Scheduled job** — `refresh_job.Rmd` (a thin wrapper around `refresh_job.R`) published as a scheduled R Markdown (cron `* * * * *` — every minute). The job self-gates: if no match is live or about to kick off it exits in ~1 pin read. During a match's live window it hits ESPN's public scoreboard every tick (live scores) and football-data once per 10 min (canonical schedule + the slower 'truth' fallback). When something actually changes it writes the shared `wc26_fixtures` pin and rebuilds the `wc26_leaderboard` snapshot so the app reads it in one op.
 
 ```bash
 # 1. Build the production bundle (writes r/www/main.{js,css} + favicon)
