@@ -3,12 +3,28 @@ title: "World Cup 2026 — Fixtures Refresh"
 output: html_document
 ---
 
-This document is deployed to POSIT Connect as a **scheduled R Markdown**.
-Each scheduled render pulls fresh fixtures + results from football-data.org
-and writes them to the `wc26_fixtures` pin shared with the interactive app.
+This document is deployed to POSIT Connect as a **scheduled R Markdown**. Each
+scheduled render runs the gated `run_refresh()` pipeline in `refresh_job.R`,
+which decides per tick whether to do real work.
 
-Schedule on Connect: typically `*/10 * * * *` during match windows, hourly
-otherwise.
+**Schedule on Connect:** `* * * * *` (every minute). The job is self-gating:
+
+- **Idle ticks** (no match live, no match about to kick off) exit silently in
+  ~1 pin read — no external API calls, no leaderboard rebuild, no log entry.
+- **Live-window ticks** (any match in `[kickoff − 2 min, kickoff + 110 min]`
+  for group / `+ 180 min` for knockout, OR any match with status
+  `IN_PLAY` / `PAUSED`) do the full pipeline:
+  - Pull ESPN's public scoreboard (every tick, no auth, no published limit)
+    for live scores, ET, and PK shootout counts
+  - Pull football-data.org **once per 10 min** (throttled via a tiny pin
+    `wc26_last_football_data_at`) for the canonical schedule + slower
+    'truth' fallback
+  - Write the merged result to `wc26_fixtures`
+  - Rebuild the `wc26_leaderboard` snapshot so the app reads it in one op
+  - Append one row to `wc26_refresh_log` (rolling, last 100 runs)
+
+See `r/refresh.R` for the gate (`should_run_refresh`, `is_live_window`) and
+the throttle, and `r/api_espn.R` for the ESPN ET/PK extraction logic.
 
 ```{r setup, include=FALSE, message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
