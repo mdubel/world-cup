@@ -39,6 +39,7 @@ source("fixtures.R")
 source("users.R")
 source("predictions.R")
 source("leaderboard.R")
+source("game_stats.R")
 source("refresh.R")
 
 result <- run_refresh()

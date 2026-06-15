@@ -5,6 +5,7 @@ import { BracketTab } from "@/components/Tabs/BracketTab";
 import { GroupsTab } from "@/components/Tabs/GroupsTab";
 import { LeaderboardTab } from "@/components/Tabs/LeaderboardTab";
 import { RulesTab } from "@/components/Tabs/RulesTab";
+import { StatsTab } from "@/components/Tabs/StatsTab";
 import { TournamentPickTab } from "@/components/Tabs/TournamentPickTab";
 import { TrackerTab } from "@/components/Tabs/TrackerTab";
 import { Toaster } from "@/components/Toaster";
@@ -65,6 +66,20 @@ export function App() {
                   >
                     Bracket
                   </TabsTrigger>
+                  {/* Stats tab is currently admin-only (feature flag via the
+                      existing WC26_ADMINS allowlist) — same gating as the
+                      Admin tab so the office pool doesn't see it until we
+                      flip the switch. Drop the is_admin wrapper here AND on
+                      the TabsContent below when ready to ship to everyone. */}
+                  {user?.is_admin && (
+                    <TabsTrigger
+                      value='stats'
+                      className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-paper data-[state=active]:text-ink data-[state=active]:border-2 data-[state=active]:border-ink'
+                      title='Pool stats — who picked what, biggest upsets, points over time (admin-only while in test)'
+                    >
+                      Stats
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger
                     value='winner'
                     className='font-display tracking-wide sm:tracking-wider text-xs sm:text-sm data-[state=active]:bg-mustard data-[state=active]:text-ink'
@@ -97,6 +112,11 @@ export function App() {
               <TabsContent value='bracket'>
                 <BracketTab />
               </TabsContent>
+              {user?.is_admin && (
+                <TabsContent value='stats'>
+                  <StatsTab />
+                </TabsContent>
+              )}
               <TabsContent value='rules'>
                 <RulesTab />
               </TabsContent>

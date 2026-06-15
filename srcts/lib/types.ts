@@ -169,6 +169,53 @@ export interface AdminStats {
   error?: string;
 }
 
+export type MatchOutcome = "HOME" | "DRAW" | "AWAY";
+
+export interface GameStatsScorer {
+  user_id: string;
+  display_name: string;
+  pick: MatchOutcome | null;
+  advancing_team: "HOME" | "AWAY" | null;
+  points: number;
+}
+
+export interface GameStatsEntry {
+  match_id: string;
+  outcome: MatchOutcome | null;
+  picks_by_choice: Record<MatchOutcome, number>;
+  pickers_by_choice: Record<MatchOutcome, string[]>;
+  scorers: GameStatsScorer[];
+  total_picks: number;
+  n_scorers: number;
+  total_points: number;
+  /** Pickers who picked the actual outcome — the obviousness numerator. */
+  winners_count: number;
+  /** winners_count / total_picks, in [0, 1]. */
+  winners_fraction: number;
+  /** Shannon entropy over {HOME, DRAW, AWAY} normalised by log(3) → [0, 1]. */
+  pick_entropy: number;
+}
+
+export interface GameStatsTimelineEntry {
+  match_id: string;
+  kickoff_utc: string;
+  total_points: number;
+  n_scorers: number;
+  total_picks: number;
+  top_scorers_label: string;
+}
+
+export interface GameStats {
+  games: Record<string, GameStatsEntry>;
+  superlatives: {
+    most_obvious: string | null;
+    most_surprising: string | null;
+    biggest_split: string | null;
+  };
+  points_timeline: GameStatsTimelineEntry[];
+  computed_at_utc: string;
+}
+
 export interface SetTrackerPayload {
   match_id: string;
   /**

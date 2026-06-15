@@ -186,3 +186,228 @@ build_leaderboard <- function(fixtures_df, users_df, predictions_loader, tournam
     computed_at_utc = iso_utc(now_utc())
   )
 }
+
+# Per-game stats: for each FINISHED match, who picked what + who scored,
+# plus three "superlative" pointers (most-obvious / most-surprising / biggest
+# split) and a chronological points-per-match timeline for the chart.
+#
+# Game-type-agnostic by design — "obvious" / "surprising" only look at
+# `points > 0`, so the +1 advancing bonus for knockout matches folds into
+# the same metric as group results. Pick entropy is over the three buckets
+# HOME / DRAW / AWAY regardless of stage.
+#
+# Output is structured to be JSON-friendly via render_json: nested data
+# frames are flattened to column-major lists so the React side can use
+# the existing columnarToRows helper to reconstruct.
+build_game_stats <- function(fixtures_df,
+                              users_df,
+                              predictions_loader,
+                              tournament_picks_df) {
+  empty <- list(
+    games = list(),
+    superlatives = list(
+      most_obvious = NULL,
+      most_surprising = NULL,
+      biggest_split = NULL
+    ),
+    points_timeline = list(),
+    computed_at_utc = iso_utc(now_utc())
+  )
+
+  if (is.null(fixtures_df) || nrow(fixtures_df) == 0 ||
+      is.null(users_df) || nrow(users_df) == 0) {
+    return(empty)
+  }
+
+  # Only finished matches with known teams. TBD bracket slots and
+  # postponed/cancelled matches are skipped — no meaningful "who scored"
+  # to surface.
+  finished <- fixtures_df[
+    !is.na(fixtures_df$status) & fixtures_df$status == "FINISHED" &
+    !is.na(fixtures_df$home_team_id) & !is.na(fixtures_df$away_team_id),
+    , drop = FALSE
+  ]
+  if (nrow(finished) == 0) return(empty)
+
+  name_for <- setNames(users_df$display_name, users_df$user_id)
+
+  # Accumulate per-match buckets. Keyed by match_id; each entry holds the
+  # picker lists by choice and a growing scorers data frame.
+  init_bucket <- function() {
+    list(
+      pickers_by_choice = list(
+        HOME = character(),
+        DRAW = character(),
+        AWAY = character()
+      ),
+      scorers = data.frame(
+        user_id        = character(),
+        display_name   = character(),
+        pick           = character(),
+        advancing_team = character(),
+        points         = integer(),
+        stringsAsFactors = FALSE
+      )
+    )
+  }
+  per_game <- setNames(
+    lapply(finished$match_id, function(.) init_bucket()),
+    finished$match_id
+  )
+
+  # One full per-user pass — identical fan-out cost to build_leaderboard,
+  # so we get this for free as long as the refresh job calls both.
+  for (uid in users_df$user_id) {
+    preds <- predictions_loader(uid)
+    if (is.null(preds) || nrow(preds) == 0) next
+
+    tpick_row <- if (!is.null(tournament_picks_df) &&
+                     nrow(tournament_picks_df) > 0) {
+      tp <- tournament_picks_df[tournament_picks_df$user_id == uid, ,
+                                 drop = FALSE]
+      if (nrow(tp) == 0) NULL else as.list(tp[1, , drop = FALSE])
+    } else NULL
+
+    s <- score_user(preds, tpick_row, finished)
+    per_match <- s$per_match
+    if (is.null(per_match) || nrow(per_match) == 0) next
+
+    dn <- name_for[[uid]] %||% uid
+
+    for (i in seq_len(nrow(per_match))) {
+      m_id <- per_match$match_id[i]
+      bucket <- per_game[[m_id]]
+      if (is.null(bucket)) next
+
+      pk <- per_match$pick[i]
+      if (!is.na(pk) && pk %in% c("HOME", "DRAW", "AWAY")) {
+        bucket$pickers_by_choice[[pk]] <-
+          c(bucket$pickers_by_choice[[pk]], dn)
+      }
+
+      pts <- per_match$points[i]
+      if (!is.na(pts) && pts > 0) {
+        bucket$scorers <- rbind(
+          bucket$scorers,
+          data.frame(
+            user_id        = uid,
+            display_name   = dn,
+            pick           = if (is.na(pk)) NA_character_ else pk,
+            advancing_team = if (is.null(per_match$advancing_team[i]) ||
+                                 isTRUE(is.na(per_match$advancing_team[i])))
+                               NA_character_
+                             else per_match$advancing_team[i],
+            points         = as.integer(pts),
+            stringsAsFactors = FALSE
+          )
+        )
+      }
+      per_game[[m_id]] <- bucket
+    }
+  }
+
+  # Compute per-game aggregates + metrics.
+  games_out <- list()
+  for (m_id in names(per_game)) {
+    pg <- per_game[[m_id]]
+    counts <- vapply(pg$pickers_by_choice, length, integer(1))
+    total_picks <- sum(counts)
+    if (total_picks == 0) next   # no one picked this game — skip
+
+    n_scored <- nrow(pg$scorers)
+    total_points <- if (n_scored == 0) 0L else sum(pg$scorers$points)
+
+    # Obvious vs surprising: same axis, opposite ends. We use "fraction of
+    # pickers who picked the ACTUAL outcome" (HOME / DRAW / AWAY from the
+    # fixture's winner column) rather than "fraction who scored anything"
+    # — the latter would be ~1.0 on most games because group rules pay
+    # 1pt for predicted-winner-actual-draw partial credit. Outcome-based
+    # picks are the cleaner consensus-correctness signal.
+    fx_row <- finished[finished$match_id == m_id, , drop = FALSE]
+    outcome <- if (nrow(fx_row) == 0) NA_character_ else fx_row$winner[1]
+    winners_count <- if (!is.na(outcome) &&
+                         outcome %in% c("HOME", "DRAW", "AWAY"))
+                       as.integer(counts[[outcome]])
+                     else 0L
+    winners_fraction <- if (total_picks == 0) 0
+                        else winners_count / total_picks
+
+    # Pick entropy normalised over the three choice buckets — fully even
+    # 1/3 / 1/3 / 1/3 → 1.0; everyone picked the same → 0.0.
+    probs <- counts[counts > 0] / total_picks
+    pick_entropy <- if (length(probs) <= 1) 0
+                    else -sum(probs * log(probs)) / log(3)
+
+    # Sort scorers by points desc then name for the per-game expand view.
+    sc <- pg$scorers
+    if (nrow(sc) > 0) {
+      sc <- sc[order(-sc$points, sc$display_name), , drop = FALSE]
+      rownames(sc) <- NULL
+    }
+
+    games_out[[m_id]] <- list(
+      match_id          = m_id,
+      outcome           = if (is.na(outcome)) NA_character_ else outcome,
+      picks_by_choice   = as.list(counts),
+      pickers_by_choice = pg$pickers_by_choice,
+      # Column-major for cheap JSON serialisation; columnarToRows
+      # reconstructs on the React side.
+      scorers           = as.list(sc),
+      total_picks       = as.integer(total_picks),
+      n_scorers         = as.integer(n_scored),
+      total_points      = as.integer(total_points),
+      winners_count     = winners_count,
+      winners_fraction  = winners_fraction,
+      pick_entropy      = pick_entropy
+    )
+  }
+  if (length(games_out) == 0) return(empty)
+
+  # Superlatives. which.max returns the first by name when tied; that's
+  # acceptable for a stats display.
+  wf <- vapply(games_out, function(g) g$winners_fraction, numeric(1))
+  pe <- vapply(games_out, function(g) g$pick_entropy, numeric(1))
+  superlatives <- list(
+    most_obvious    = names(games_out)[which.max(wf)],
+    most_surprising = names(games_out)[which.min(wf)],
+    biggest_split   = names(games_out)[which.max(pe)]
+  )
+
+  # Chronological points timeline for the bar chart. One row per game.
+  timeline_rows <- lapply(names(games_out), function(m_id) {
+    fx_row <- finished[finished$match_id == m_id, , drop = FALSE]
+    if (nrow(fx_row) == 0) return(NULL)
+    g <- games_out[[m_id]]
+    sc <- pg <- per_game[[m_id]]$scorers
+    if (nrow(sc) > 0) {
+      sc <- sc[order(-sc$points), , drop = FALSE]
+      top3 <- head(sc, 3)
+      top_label <- paste(sprintf("%s (+%d)", top3$display_name, top3$points),
+                         collapse = ", ")
+    } else {
+      top_label <- ""
+    }
+    data.frame(
+      match_id         = m_id,
+      kickoff_utc      = fx_row$kickoff_utc[1],
+      total_points     = g$total_points,
+      n_scorers        = g$n_scorers,
+      total_picks      = g$total_picks,
+      top_scorers_label = top_label,
+      stringsAsFactors = FALSE
+    )
+  })
+  timeline_df <- do.call(rbind, Filter(Negate(is.null), timeline_rows))
+  if (!is.null(timeline_df) && nrow(timeline_df) > 0) {
+    timeline_df <- timeline_df[order(timeline_df$kickoff_utc), , drop = FALSE]
+    timeline_df$kickoff_utc <- iso_utc(timeline_df$kickoff_utc)
+    rownames(timeline_df) <- NULL
+  }
+
+  list(
+    games          = games_out,
+    superlatives   = superlatives,
+    points_timeline = if (is.null(timeline_df)) list() else as.list(timeline_df),
+    computed_at_utc = iso_utc(now_utc())
+  )
+}

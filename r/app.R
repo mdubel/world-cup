@@ -13,6 +13,7 @@ source("users.R", local = TRUE)
 source("predictions.R", local = TRUE)
 source("tracker.R", local = TRUE)
 source("leaderboard.R", local = TRUE)
+source("game_stats.R", local = TRUE)
 source("refresh.R", local = TRUE)
 source("admin.R", local = TRUE)
 source("seed.R", local = TRUE)
@@ -201,6 +202,36 @@ server <- function(input, output, session) {
       },
       computed_at_utc = board$computed_at_utc
     )
+  })
+
+  output$game_stats <- render_json({
+    # Feature-flagged to the same WC26_ADMINS allowlist as the Admin tab
+    # while we test — the UI also hides the Stats tab for non-admins, but
+    # the server-side guard means a non-admin can't pull the data even
+    # by poking the websocket directly. Drop this check when we open it
+    # up to the whole office pool.
+    if (!isTRUE(is_admin(user_info))) {
+      return(list(error = "not_authorized"))
+    }
+    # Mirror the leaderboard wiring: re-render when the fixtures poll
+    # detects a refresh-job write, and bust the in-process cache so we
+    # actually read the fresh stats pin (not the stale cached copy).
+    fixtures_rv()
+    invalidate_cache("game_stats")
+    stats <- read_game_stats()
+    if (is.null(stats)) {
+      return(list(
+        games = list(),
+        superlatives = list(
+          most_obvious = NULL,
+          most_surprising = NULL,
+          biggest_split = NULL
+        ),
+        points_timeline = list(),
+        computed_at_utc = iso_utc(now_utc())
+      ))
+    }
+    stats
   })
 
   output$leaderboard_detail <- render_json({

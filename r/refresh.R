@@ -171,8 +171,23 @@ run_refresh <- function(transport = default_transport,
       -1L
     })
 
+    # Step 4: rebuild the per-game stats snapshot. Same per-user fan-out
+    # as the leaderboard build — both iterate every predictions pin — so
+    # cost is roughly doubled but still bounded by the user count. A
+    # failure here MUST NOT break the leaderboard / fixtures write; users
+    # would lose the Stats tab but the rest of the app stays current.
+    stats_n <- tryCatch({
+      st <- rebuild_game_stats(fixtures_df = fx)
+      length(st$games)
+    }, error = function(e) {
+      warning(sprintf("Game-stats snapshot rebuild failed: %s",
+                      conditionMessage(e)))
+      -1L
+    })
+
     list(ok = TRUE, n = nrow(fx),
          leaderboard_rows = snapshot_n,
+         stats_games = stats_n,
          espn_overlay = overlay_stats,
          football_data_fetched = fetch_fd)
   }, error = function(e) {
