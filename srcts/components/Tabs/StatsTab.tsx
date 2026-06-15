@@ -29,6 +29,20 @@ const OUTCOME_LABEL: Record<MatchOutcome, string> = {
   AWAY: "away",
 };
 
+// Context-aware label: when we know which match this is, render team
+// codes (KOR / CZE) instead of generic HOME / AWAY so the user can scan
+// who voted for whom without re-reading the match line. DRAW always
+// renders as "Draw" since there's no team behind it. Falls back to the
+// generic outcome label when the match isn't available (e.g. TBD slots).
+function outcomeLabel(outcome: MatchOutcome, match: Match | null): string {
+  if (outcome === "DRAW") return "Draw";
+  if (!match) return OUTCOME_LABEL[outcome];
+  if (outcome === "HOME") {
+    return match.home_team_code ?? match.home_team_name ?? "Home";
+  }
+  return match.away_team_code ?? match.away_team_name ?? "Away";
+}
+
 // ------------------------------------------------------------ MatchHeadline
 
 function MatchHeadline({ match }: { match: Match | null }) {
@@ -67,9 +81,11 @@ function MatchHeadline({ match }: { match: Match | null }) {
 function DistributionBar({
   entry,
   outcome,
+  match,
 }: {
   entry: GameStatsEntry;
   outcome: MatchOutcome | null;
+  match?: Match | null;
 }) {
   const total = entry.total_picks;
   if (total === 0) {
@@ -80,7 +96,7 @@ function DistributionBar({
   ).map((k) => ({
     key: k,
     count: entry.picks_by_choice[k] ?? 0,
-    label: `${entry.picks_by_choice[k] ?? 0} ${OUTCOME_LABEL[k]}`,
+    label: `${entry.picks_by_choice[k] ?? 0} picked ${outcomeLabel(k, match ?? null)}`,
   }));
 
   return (
@@ -154,7 +170,7 @@ function SuperlativeCard({
         {entry ? (
           <>
             <MatchHeadline match={match} />
-            <DistributionBar entry={entry} outcome={entry.outcome} />
+            <DistributionBar entry={entry} outcome={entry.outcome} match={match} />
             <p className='text-[10px] text-ink-soft leading-snug'>{hint}</p>
           </>
         ) : (
@@ -294,7 +310,7 @@ function GameRow({
               </span>
             )}
           </div>
-          <DistributionBar entry={entry} outcome={entry.outcome} />
+          <DistributionBar entry={entry} outcome={entry.outcome} match={match} />
         </div>
         <div className='text-right font-mono text-xs whitespace-nowrap'>
           <div className='font-bold text-ink'>{entry.total_points} pts</div>
@@ -331,7 +347,7 @@ function GameRow({
                       )}
                     />
                     <span className='font-display tracking-widest uppercase text-[10px] text-ink-soft'>
-                      {OUTCOME_LABEL[k]} · {names.length}
+                      {outcomeLabel(k, match)} · {names.length}
                       {won && (
                         <span className='ml-1 text-pitch'>· actual</span>
                       )}
@@ -366,7 +382,7 @@ function GameRow({
                       +{s.points}
                       {s.pick && (
                         <span className='ml-1 text-[9px] uppercase'>
-                          {OUTCOME_LABEL[s.pick]}
+                          {outcomeLabel(s.pick, match)}
                         </span>
                       )}
                     </span>
