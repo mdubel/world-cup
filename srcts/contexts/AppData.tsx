@@ -8,8 +8,10 @@ import { useTracker } from "@/hooks/useTracker";
 import { usePredictions } from "@/hooks/usePredictions";
 import { useTournamentPick } from "@/hooks/useTournamentPick";
 import { useLeaderboard, type LeaderboardView } from "@/hooks/useLeaderboard";
+import { useGameStats } from "@/hooks/useGameStats";
 import type {
   CurrentUser,
+  GameStats,
   Pick as MatchPick,
   PredictionsMap,
   Side,
@@ -41,6 +43,16 @@ interface AppData {
   tournamentPick: TournamentPick | null;
   setTournamentPick: (teamId: string) => void;
   leaderboard: LeaderboardView;
+  /**
+   * Pool-stats payload from output\$game_stats. Hoisted to App level for
+   * the same reason as the other Shiny hooks here — StatsTab mounts and
+   * unmounts on tab switches, and useShinyOutput briefly returns undefined
+   * on remount which would flash "Loading stats…" every time the user
+   * comes back to the tab. Keeping the hook alive at this level pins the
+   * value across mounts.
+   */
+  gameStats: GameStats | null;
+  gameStatsLoaded: boolean;
   /**
    * True once tracker + predictions + tournament-pick have all delivered
    * their first server payload for this session. Until then the action
@@ -84,6 +96,7 @@ export function AppDataProvider({
     loaded: tournamentLoaded,
   } = useTournamentPick();
   const leaderboard = useLeaderboard();
+  const { stats: gameStats, loaded: gameStatsLoaded } = useGameStats();
   const userDataLoaded =
     trackerLoaded && predictionsLoaded && tournamentLoaded;
 
@@ -117,6 +130,8 @@ export function AppDataProvider({
         tournamentPick,
         setTournamentPick,
         leaderboard,
+        gameStats,
+        gameStatsLoaded,
         userDataLoaded,
         favoriteTeam,
         favoriteTeamId,

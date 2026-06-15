@@ -3,7 +3,6 @@ import { TeamFlag } from "@/components/TeamFlag";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAppData } from "@/contexts/AppData";
 import { useUserTz } from "@/contexts/Timezone";
-import { useGameStats } from "@/hooks/useGameStats";
 import { stageLabel } from "@/lib/fixtures";
 import { formatLocalDate } from "@/lib/time";
 import type {
@@ -396,8 +395,9 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 export function StatsTab() {
   const {
     fixtures: { matches, loaded: fxLoaded },
+    gameStats: stats,
+    gameStatsLoaded: loaded,
   } = useAppData();
-  const { stats, loaded } = useGameStats();
   const tz = useUserTz();
   const [sort, setSort] = useState<SortKey>("chronological");
 

@@ -219,6 +219,27 @@ server <- function(input, output, session) {
     fixtures_rv()
     invalidate_cache("game_stats")
     stats <- read_game_stats()
+    # Fallback: the wc26_game_stats pin may not exist yet (fresh deploy
+    # of build_game_stats() before the refresh job has run) OR it might
+    # be present but empty. In both cases, build the stats inline this
+    # one time so the user sees real data instead of "no finished
+    # matches yet" with 12 finished matches on the schedule. Same pattern
+    # as the leaderboard live-build fallback.
+    if (is.null(stats) || length(stats$games) == 0) {
+      stats <- tryCatch(
+        build_game_stats(
+          fixtures_df         = fixtures_rv(),
+          users_df            = read_users(),
+          predictions_loader  = read_predictions,
+          tournament_picks_df = read_tournament_picks()
+        ),
+        error = function(e) {
+          warning(sprintf("Inline game-stats build failed: %s",
+                          conditionMessage(e)))
+          NULL
+        }
+      )
+    }
     if (is.null(stats)) {
       return(list(
         games = list(),
