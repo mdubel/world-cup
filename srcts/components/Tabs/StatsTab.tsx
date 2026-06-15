@@ -133,6 +133,8 @@ interface SuperlativeCardProps {
   entry: GameStatsEntry | null;
   match: Match | null;
   metricText: string;
+  /** Tiny suffix under the metric — disambiguates what the number means. */
+  metricCaption?: string;
 }
 
 function SuperlativeCard({
@@ -142,6 +144,7 @@ function SuperlativeCard({
   entry,
   match,
   metricText,
+  metricCaption,
 }: SuperlativeCardProps) {
   const ringClass: Record<typeof accent, string> = {
     pitch: "border-pitch/60 ring-2 ring-pitch/15",
@@ -156,16 +159,23 @@ function SuperlativeCard({
           <p className='font-display tracking-widest uppercase text-[10px] text-ink-soft'>
             {label}
           </p>
-          <span
-            className={cn(
-              "font-mono text-xs font-bold",
-              accent === "pitch" && "text-pitch",
-              accent === "crimson" && "text-crimson",
-              accent === "mustard" && "text-mustard"
+          <div className='text-right'>
+            <span
+              className={cn(
+                "font-mono text-xs font-bold whitespace-nowrap",
+                accent === "pitch" && "text-pitch",
+                accent === "crimson" && "text-crimson",
+                accent === "mustard" && "text-mustard"
+              )}
+            >
+              {metricText}
+            </span>
+            {metricCaption && (
+              <p className='font-display tracking-widest uppercase text-[8px] text-ink-soft mt-0.5'>
+                {metricCaption}
+              </p>
             )}
-          >
-            {metricText}
-          </span>
+          </div>
         </div>
         {entry ? (
           <>
@@ -484,7 +494,24 @@ export function StatsTab() {
     : null;
   const split = sl.biggest_split ? stats.games[sl.biggest_split] ?? null : null;
 
-  const fmtPct = (x: number) => `${Math.round(x * 100)}%`;
+  // Concrete readouts instead of abstract %s. For obvious/surprising it's
+  // "X / Y picked the actual outcome" (raw count + total, so the user can
+  // see both the share AND the scale). For biggest split it's the largest
+  // single bucket's share — low means no side dominated, so "top 44%"
+  // reads naturally as "no group exceeded 44%". (Normalised Shannon
+  // entropy was the previous metric — mathematically the right answer
+  // but '93%' didn't convey anything actionable.)
+  const correctText = (g: GameStatsEntry | null) =>
+    g ? `${g.winners_count} / ${g.total_picks}` : "—";
+  const topShareText = (g: GameStatsEntry | null) => {
+    if (!g || g.total_picks === 0) return "—";
+    const max = Math.max(
+      g.picks_by_choice.HOME ?? 0,
+      g.picks_by_choice.DRAW ?? 0,
+      g.picks_by_choice.AWAY ?? 0
+    );
+    return `top ${Math.round((max / g.total_picks) * 100)}%`;
+  };
 
   return (
     <div className='space-y-5'>
@@ -503,11 +530,12 @@ export function StatsTab() {
       <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
         <SuperlativeCard
           label='Most obvious'
-          hint='Highest share of pickers landed on the actual outcome.'
+          hint='Most pickers landed on the actual outcome.'
           accent='pitch'
           entry={obvious}
           match={obvious ? matchById.get(obvious.match_id) ?? null : null}
-          metricText={obvious ? fmtPct(obvious.winners_fraction) : "—"}
+          metricText={correctText(obvious)}
+          metricCaption='picked actual'
         />
         <SuperlativeCard
           label='Most surprising'
@@ -517,15 +545,17 @@ export function StatsTab() {
           match={
             surprising ? matchById.get(surprising.match_id) ?? null : null
           }
-          metricText={surprising ? fmtPct(surprising.winners_fraction) : "—"}
+          metricText={correctText(surprising)}
+          metricCaption='picked actual'
         />
         <SuperlativeCard
           label='Biggest split'
-          hint='Picks were spread most evenly across HOME / DRAW / AWAY.'
+          hint='No single side dominated — picks were spread most evenly.'
           accent='mustard'
           entry={split}
           match={split ? matchById.get(split.match_id) ?? null : null}
-          metricText={split ? fmtPct(split.pick_entropy) : "—"}
+          metricText={topShareText(split)}
+          metricCaption='largest bloc'
         />
       </div>
 
