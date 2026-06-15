@@ -43,16 +43,29 @@ export function TrackerTab() {
     return matches.filter((m) => {
       const past = isPast(m.kickoff_utc, now);
       const state = tracker[m.match_id];
+      // A match is "live" when it has kicked off but isn't finished yet.
+      // The server status (IN_PLAY / PAUSED) is the primary signal; the
+      // `past && !FINISHED` clause is a fallback for the ~1 min window
+      // before the refresh job updates status from TIMED to IN_PLAY.
+      const live =
+        m.status === "IN_PLAY" ||
+        m.status === "PAUSED" ||
+        (past && m.status !== "FINISHED");
       let passesStatus: boolean;
       switch (statusFilter) {
         case "upcoming":
-          passesStatus = !past && m.status !== "FINISHED";
+          // Live games belong here too — they're the user's most relevant
+          // matches when opening the app, and the kickoff_utc sort puts
+          // them at the top naturally (their kickoffs are earlier than
+          // the truly-upcoming ones). Picks stay locked via the per-card
+          // `past` check; this is purely about visibility.
+          passesStatus = live || (!past && m.status !== "FINISHED");
           break;
         case "watch_later":
           passesStatus = state === "WATCH_LATER";
           break;
         case "completed":
-          passesStatus = m.status === "FINISHED" || past;
+          passesStatus = m.status === "FINISHED";
           break;
         case "all":
         default:
