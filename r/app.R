@@ -219,13 +219,17 @@ server <- function(input, output, session) {
     fixtures_rv()
     invalidate_cache("game_stats")
     stats <- read_game_stats()
-    # Fallback: the wc26_game_stats pin may not exist yet (fresh deploy
-    # of build_game_stats() before the refresh job has run) OR it might
-    # be present but empty. In both cases, build the stats inline this
-    # one time so the user sees real data instead of "no finished
-    # matches yet" with 12 finished matches on the schedule. Same pattern
-    # as the leaderboard live-build fallback.
-    if (is.null(stats) || length(stats$games) == 0) {
+    # Three reasons to rebuild inline:
+    #  1. Pin doesn't exist yet (fresh deploy before refresh job runs)
+    #  2. Pin exists but has zero games
+    #  3. Pin is stale-format (written by a previous build_game_stats
+    #     version that didn't I()-wrap variable-length vectors → React
+    #     crashes on click). We detect this via format_version.
+    needs_rebuild <- is.null(stats) ||
+                      length(stats$games) == 0 ||
+                      is.null(stats$format_version) ||
+                      isTRUE(stats$format_version < 2L)
+    if (needs_rebuild) {
       stats <- tryCatch(
         build_game_stats(
           fixtures_df         = fixtures_rv(),
@@ -239,6 +243,16 @@ server <- function(input, output, session) {
           NULL
         }
       )
+      # Self-heal: persist the freshly-built stats so subsequent reads in
+      # this worker (and others) hit the new-format pin instead of paying
+      # the inline-build cost every render. Best-effort — a write failure
+      # just means the next reader also rebuilds inline.
+      if (!is.null(stats)) {
+        tryCatch(write_game_stats(stats), error = function(e) {
+          warning(sprintf("Persisting inline-built stats failed: %s",
+                          conditionMessage(e)))
+        })
+      }
     }
     if (is.null(stats)) {
       return(list(

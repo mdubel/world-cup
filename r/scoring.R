@@ -345,14 +345,26 @@ build_game_stats <- function(fixtures_df,
       rownames(sc) <- NULL
     }
 
+    # Wrap variable-length vectors in I() so Shiny's auto_unbox=TRUE JSON
+    # serializer doesn't collapse length-1 cases to scalars. Without this,
+    # `pickers_by_choice$DRAW` with one picker becomes "alice" (string) on
+    # the wire instead of ["alice"] (array) — and the React side then
+    # crashes calling .join() on a string, blanking the Stats tab.
+    pickers_arr <- lapply(pg$pickers_by_choice, function(v) I(as.character(v)))
+    scorers_cols <- if (nrow(sc) == 0) {
+      list()
+    } else {
+      lapply(as.list(sc), I)
+    }
+
     games_out[[m_id]] <- list(
       match_id          = m_id,
       outcome           = if (is.na(outcome)) NA_character_ else outcome,
       picks_by_choice   = as.list(counts),
-      pickers_by_choice = pg$pickers_by_choice,
+      pickers_by_choice = pickers_arr,
       # Column-major for cheap JSON serialisation; columnarToRows
       # reconstructs on the React side.
-      scorers           = as.list(sc),
+      scorers           = scorers_cols,
       total_picks       = as.integer(total_picks),
       n_scorers         = as.integer(n_scored),
       total_points      = as.integer(total_points),
@@ -404,10 +416,25 @@ build_game_stats <- function(fixtures_df,
     rownames(timeline_df) <- NULL
   }
 
+  # Same I() wrap for the timeline columns so a 1-finished-match state
+  # (the day after the tournament's first kickoff) doesn't unbox into
+  # per-column scalars that columnarToRows can't reconstruct.
+  timeline_cols <- if (is.null(timeline_df) || nrow(timeline_df) == 0) {
+    list()
+  } else {
+    lapply(as.list(timeline_df), I)
+  }
+
   list(
+    # Bump this when the schema or wire format changes — output\$game_stats
+    # uses it as a self-healing signal: an older pin gets discarded and
+    # rebuilt inline so the React side stops crashing on the format gap.
+    # v2 added I() wrapping on variable-length character / data-frame
+    # columns to defeat Shiny's auto_unbox.
+    format_version = 2L,
     games          = games_out,
     superlatives   = superlatives,
-    points_timeline = if (is.null(timeline_df)) list() else as.list(timeline_df),
+    points_timeline = timeline_cols,
     computed_at_utc = iso_utc(now_utc())
   )
 }
