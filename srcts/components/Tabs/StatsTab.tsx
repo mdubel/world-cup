@@ -7,7 +7,6 @@ import { stageLabel } from "@/lib/fixtures";
 import { formatLocalDate } from "@/lib/time";
 import type {
   GameStatsEntry,
-  GameStatsScorer,
   GameStatsTimelineEntry,
   Match,
   MatchOutcome,
@@ -204,14 +203,32 @@ function PointsTimelineChart({
   matchById: Map<string, Match>;
   tz: string;
 }) {
+  // JS-driven hover state instead of SVG <title>. The native browser
+  // tooltip has a ~500ms display delay AND uses the OS-supplied yellow
+  // tooltip chrome that looks out of place. The state-driven approach is
+  // instant on hover, also fires on touch via onClick, and lets us style
+  // the tooltip card to match the rest of the app.
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+
   if (timeline.length === 0) return null;
+
   const max = Math.max(1, ...timeline.map((t) => t.total_points));
-  // viewBox-based — width auto-fills via CSS. 4px gap between bars.
   const BAR_W = 18;
   const GAP = 4;
   const CHART_H = 120;
-  const LABEL_H = 18;
   const totalW = timeline.length * (BAR_W + GAP) - GAP;
+
+  const selected = selectedIdx != null ? timeline[selectedIdx] ?? null : null;
+  const selectedMatch = selected
+    ? matchById.get(selected.match_id) ?? null
+    : null;
+  const matchLabel = (t: GameStatsTimelineEntry) => {
+    const m = matchById.get(t.match_id);
+    if (!m) return t.match_id;
+    const h = m.home_team_code ?? m.home_team_name ?? "?";
+    const a = m.away_team_code ?? m.away_team_name ?? "?";
+    return `${h} vs ${a}`;
+  };
 
   return (
     <Card className='border-paper-edge bg-paper'>
@@ -221,14 +238,58 @@ function PointsTimelineChart({
             Points per match
           </p>
           <span className='text-[10px] text-ink-soft font-mono'>
-            chronological · hover a bar for details
+            chronological · hover or tap a bar
           </span>
         </div>
-        <div className='overflow-x-auto -mx-4 px-4'>
+
+        {/* Tooltip card. Reserved height (min-h) so the chart doesn't
+            jump up/down as the user hovers. Falls back to a hint when no
+            bar is hovered. */}
+        <div className='min-h-[64px] border border-paper-edge bg-paper-soft rounded-sm px-3 py-2 text-xs'>
+          {selected ? (
+            <div className='space-y-0.5'>
+              <div className='flex items-baseline justify-between gap-2 flex-wrap'>
+                <span className='font-display tracking-wider'>
+                  {matchLabel(selected)}
+                </span>
+                <span className='font-mono text-[10px] text-ink-soft whitespace-nowrap'>
+                  {formatLocalDate(selected.kickoff_utc, tz)}
+                  {selectedMatch?.stage && (
+                    <span className='ml-1 uppercase text-crimson'>
+                      {stageLabel(selectedMatch.stage)}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className='font-mono text-[11px] text-ink'>
+                <span className='font-bold text-pitch'>
+                  {selected.total_points} pts
+                </span>{" "}
+                across {selected.n_scorers} of {selected.total_picks} pickers
+              </div>
+              {selected.top_scorers_label && (
+                <div className='text-[11px] text-ink-soft'>
+                  Top: {selected.top_scorers_label}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className='text-[11px] text-ink-soft italic'>
+              Hover or tap a bar to see who scored on that match.
+            </p>
+          )}
+        </div>
+
+        <div
+          className='overflow-x-auto -mx-4 px-4'
+          // Clicking outside the bars (in the padding area) clears the
+          // selection — gives mobile users an obvious "deselect" target.
+          onMouseLeave={() => setSelectedIdx(null)}
+        >
           <svg
-            viewBox={`0 0 ${Math.max(totalW, 1)} ${CHART_H + LABEL_H}`}
+            viewBox={`0 0 ${Math.max(totalW, 1)} ${CHART_H}`}
             width={Math.max(totalW, 1)}
-            height={CHART_H + LABEL_H}
+            height={CHART_H}
             preserveAspectRatio='xMinYMin meet'
             role='img'
             aria-label='Points awarded per match, chronological'
@@ -237,39 +298,23 @@ function PointsTimelineChart({
               const x = idx * (BAR_W + GAP);
               const h = (t.total_points / max) * CHART_H;
               const y = CHART_H - h;
-              const m = matchById.get(t.match_id) ?? null;
-              const matchLabel = m
-                ? `${m.home_team_code ?? m.home_team_name ?? "?"} v ${m.away_team_code ?? m.away_team_name ?? "?"}`
-                : t.match_id;
-              const tooltip = [
-                matchLabel,
-                formatLocalDate(t.kickoff_utc, tz),
-                `${t.total_points} pts across ${t.n_scorers} of ${t.total_picks} pickers`,
-                t.top_scorers_label && `Top: ${t.top_scorers_label}`,
-              ]
-                .filter(Boolean)
-                .join("\n");
+              const isSelected = idx === selectedIdx;
               return (
-                <g key={t.match_id}>
-                  <rect
-                    x={x}
-                    y={y}
-                    width={BAR_W}
-                    height={Math.max(h, 1)}
-                    className='fill-pitch hover:fill-mustard transition-colors'
-                  >
-                    <title>{tooltip}</title>
-                  </rect>
-                  <text
-                    x={x + BAR_W / 2}
-                    y={CHART_H + LABEL_H - 4}
-                    textAnchor='middle'
-                    className='fill-ink-soft font-mono'
-                    style={{ fontSize: "8px" }}
-                  >
-                    {m?.home_team_code ?? ""}
-                  </text>
-                </g>
+                <rect
+                  key={t.match_id}
+                  x={x}
+                  y={y}
+                  width={BAR_W}
+                  height={Math.max(h, 1)}
+                  className={cn(
+                    "transition-colors cursor-pointer",
+                    isSelected ? "fill-mustard" : "fill-pitch hover:fill-mustard"
+                  )}
+                  onMouseEnter={() => setSelectedIdx(idx)}
+                  onClick={() =>
+                    setSelectedIdx(idx === selectedIdx ? null : idx)
+                  }
+                />
               );
             })}
           </svg>
@@ -371,30 +416,43 @@ function GameRow({
             })}
           </div>
 
-          {/* Scorers */}
+          {/* Standings after this match. Tells the story of how the pool's
+              positions shifted on the back of this game — much more
+              interesting than the redundant scorers list (the picks-by-side
+              column already shows who picked correctly). */}
           <div className='space-y-2'>
             <p className='font-display tracking-widest uppercase text-[10px] text-ink-soft'>
-              Scorers ({entry.n_scorers})
+              Standings after this game
             </p>
-            {entry.scorers.length === 0 ? (
-              <p className='text-[11px] text-ink-soft italic'>Nobody scored.</p>
+            {entry.leaderboard_after.length === 0 ? (
+              <p className='text-[11px] text-ink-soft italic'>
+                No active pickers yet.
+              </p>
             ) : (
-              <ul className='space-y-0.5'>
-                {entry.scorers.map((s: GameStatsScorer, idx) => (
+              <ul className='space-y-0.5 max-h-56 overflow-y-auto pr-1'>
+                {entry.leaderboard_after.map((r) => (
                   <li
-                    key={`${s.user_id}-${idx}`}
+                    key={r.rank}
                     className='flex items-baseline justify-between gap-2 text-[11px]'
                   >
-                    <span className='font-display tracking-wide truncate'>
-                      {s.display_name}
+                    <span className='flex items-baseline gap-1.5 min-w-0'>
+                      <span className='font-mono text-[10px] text-ink-soft tabular-nums w-5 text-right'>
+                        {r.rank}.
+                      </span>
+                      <span className='font-display tracking-wide truncate'>
+                        {r.display_name}
+                      </span>
                     </span>
-                    <span className='font-mono text-ink-soft tabular-nums whitespace-nowrap'>
-                      +{s.points}
-                      {s.pick && (
-                        <span className='ml-1 text-[9px] uppercase'>
-                          {outcomeLabel(s.pick, match)}
-                        </span>
-                      )}
+                    <span className='font-mono tabular-nums whitespace-nowrap'>
+                      <span className='font-bold'>{r.total}</span>
+                      <span
+                        className={cn(
+                          "ml-1.5 text-[10px]",
+                          r.delta > 0 ? "text-pitch" : "text-ink-soft"
+                        )}
+                      >
+                        +{r.delta}
+                      </span>
                     </span>
                   </li>
                 ))}

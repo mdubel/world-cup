@@ -255,6 +255,14 @@ build_game_stats <- function(fixtures_df,
     finished$match_id
   )
 
+  # Per-user, per-match points. Populated alongside the per_game bucket
+  # loop below so we can do a chronological cumulative pass after.
+  # Named vector: match_id -> integer points for matches the user picked.
+  user_points_by_match <- setNames(
+    lapply(users_df$user_id, function(.) integer(0)),
+    users_df$user_id
+  )
+
   # One full per-user pass — identical fan-out cost to build_leaderboard,
   # so we get this for free as long as the refresh job calls both.
   for (uid in users_df$user_id) {
@@ -286,6 +294,12 @@ build_game_stats <- function(fixtures_df,
       }
 
       pts <- per_match$points[i]
+      # Record THIS match's points against the user even when 0 — the
+      # chronological cumulative pass below needs zero-rows too so the
+      # 'delta' column shows '+0' for users who picked wrong.
+      user_points_by_match[[uid]][m_id] <-
+        if (is.na(pts)) 0L else as.integer(pts)
+
       if (!is.na(pts) && pts > 0) {
         bucket$scorers <- rbind(
           bucket$scorers,
@@ -303,6 +317,52 @@ build_game_stats <- function(fixtures_df,
         )
       }
       per_game[[m_id]] <- bucket
+    }
+  }
+
+  # Chronological cumulative leaderboard pass. For each finished match in
+  # kickoff order, accumulate per-user base points (group + knockout only;
+  # the +26 tournament-pick bonus lives outside per-match scoring and only
+  # lands once the actual champion is decided, which is irrelevant to the
+  # per-game narrative arc) and snapshot the standings AFTER that match.
+  # The frontend renders this as 'leaderboard after this game' with each
+  # row's delta = points gained on this exact match.
+  finished_chrono <- finished[order(finished$kickoff_utc), , drop = FALSE]
+  # Only include users who placed at least one pick — inactive users
+  # would otherwise show as N rows of "Alice · 0 (+0)" forever.
+  active_uids <- users_df$user_id[
+    vapply(users_df$user_id,
+           function(u) length(user_points_by_match[[u]]) > 0,
+           logical(1))
+  ]
+  leaderboard_after <- list()
+  if (length(active_uids) > 0) {
+    cumul <- setNames(rep(0L, length(active_uids)), active_uids)
+    for (m_id in finished_chrono$match_id) {
+      deltas <- vapply(active_uids, function(u) {
+        v <- user_points_by_match[[u]][m_id]
+        if (is.null(v) || length(v) == 0 || is.na(v)) 0L else as.integer(v)
+      }, integer(1))
+      cumul <- cumul + deltas
+      snap <- data.frame(
+        display_name = vapply(active_uids,
+                              function(u) name_for[[u]] %||% u,
+                              character(1)),
+        total        = unname(cumul),
+        delta        = unname(deltas),
+        stringsAsFactors = FALSE
+      )
+      # Sort: total desc, then delta desc (the player who jumped most on
+      # this match floats above ties), then name alphabetical.
+      snap <- snap[order(-snap$total, -snap$delta, snap$display_name),
+                   , drop = FALSE]
+      snap$rank <- seq_len(nrow(snap))
+      snap <- snap[, c("rank", "display_name", "total", "delta"),
+                   drop = FALSE]
+      rownames(snap) <- NULL
+      # I()-wrap each column so length-1 cases (a tournament with only
+      # one active user, theoretically) don't get auto-unboxed.
+      leaderboard_after[[m_id]] <- lapply(as.list(snap), I)
     }
   }
 
@@ -365,6 +425,10 @@ build_game_stats <- function(fixtures_df,
       # Column-major for cheap JSON serialisation; columnarToRows
       # reconstructs on the React side.
       scorers           = scorers_cols,
+      # Pool standings AFTER this match. Same column-major shape as
+      # scorers — leaderboard_after[[m_id]] may be NULL when the match
+      # has no active pickers (impossible in practice but defensive).
+      leaderboard_after = leaderboard_after[[m_id]] %||% list(),
       total_picks       = as.integer(total_picks),
       n_scorers         = as.integer(n_scored),
       total_points      = as.integer(total_points),
@@ -431,7 +495,9 @@ build_game_stats <- function(fixtures_df,
     # rebuilt inline so the React side stops crashing on the format gap.
     # v2 added I() wrapping on variable-length character / data-frame
     # columns to defeat Shiny's auto_unbox.
-    format_version = 2L,
+    # v3 added per-game leaderboard_after snapshots (the post-match
+    # standings rendered in the expanded GameRow).
+    format_version = 3L,
     games          = games_out,
     superlatives   = superlatives,
     points_timeline = timeline_cols,

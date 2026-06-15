@@ -179,12 +179,27 @@ export interface GameStatsScorer {
   points: number;
 }
 
+export interface GameStatsLeaderboardRow {
+  rank: number;
+  display_name: string;
+  /** Cumulative pool points after this match (base only — no champion bonus). */
+  total: number;
+  /** Points gained on THIS exact match. */
+  delta: number;
+}
+
 export interface GameStatsEntry {
   match_id: string;
   outcome: MatchOutcome | null;
   picks_by_choice: Record<MatchOutcome, number>;
   pickers_by_choice: Record<MatchOutcome, string[]>;
   scorers: GameStatsScorer[];
+  /**
+   * Pool standings AFTER this match — base points only (group + knockout).
+   * Sorted by total desc, with the user who jumped most on this match
+   * floating above ties.
+   */
+  leaderboard_after: GameStatsLeaderboardRow[];
   total_picks: number;
   n_scorers: number;
   total_points: number;

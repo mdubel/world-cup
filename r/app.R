@@ -228,7 +228,7 @@ server <- function(input, output, session) {
     needs_rebuild <- is.null(stats) ||
                       length(stats$games) == 0 ||
                       is.null(stats$format_version) ||
-                      isTRUE(stats$format_version < 2L)
+                      isTRUE(stats$format_version < 3L)
     if (needs_rebuild) {
       stats <- tryCatch(
         build_game_stats(
