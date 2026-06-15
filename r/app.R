@@ -39,14 +39,24 @@ server <- function(input, output, session) {
   user_info <- current_user(session)
   uid <- user_info$id
 
-  # Fixtures are read ONCE at session start. The scheduled refresh job (or a
-  # manual_refresh action) is what updates the pin; we only re-read on those
-  # explicit triggers — no background polling. This keeps the UI stable: tab
-  # switches and idle time never trigger spurious "Loading fixtures…" flips.
-  fixtures_rv <- reactiveVal(read_fixtures())
-  reread_fixtures <- function() {
-    fixtures_rv(read_fixtures())
-  }
+  # Live fixtures poll. Every 30s each open session checks the fixtures
+  # pin's metadata (cheap — pin_meta is a single HTTP call, no rds
+  # download) and only re-reads the full data when the fingerprint
+  # changes. Downstream consumers (output$fixtures, output$leaderboard,
+  # etc.) re-evaluate only when valueFunc returns a new value, so a tab
+  # left open during a match shows new scores ~30-60s after the refresh
+  # job writes them — no manual reload.
+  #
+  # The valueFunc still goes through cached_read in r/fixtures.R, so
+  # multiple sessions in the same Connect worker share one pin_read per
+  # cache-TTL window. checkFunc uses pin_meta which is cheap enough that
+  # per-session polling is fine.
+  fixtures_rv <- reactivePoll(
+    intervalMillis = 30000,
+    session = session,
+    checkFunc = function() pin_meta_modified(pin_name("fixtures")),
+    valueFunc = function() read_fixtures()
+  )
 
   # Memoize derived fixture data (teams + lock time) so any consumer can
   # cheaply re-read them without rebuilding from the full fixtures df.
@@ -167,6 +177,11 @@ server <- function(input, output, session) {
     predictions_invalidator()
     tournament_invalidator()
 
+    # Bust the snapshot's process cache before reading. Without this, a
+    # fixtures-poll tick that detected a refresh-job write would still
+    # see the previous in-process leaderboard snapshot until the cache's
+    # 30s TTL expired — i.e. live scores update but totals lag.
+    invalidate_cache("leaderboard")
     board <- read_leaderboard_snapshot()
     if (is.null(board) || is.null(board$rows) || nrow(board$rows) == 0) {
       # First-deploy fallback: the refresh job hasn't run yet, so there's
@@ -303,9 +318,11 @@ server <- function(input, output, session) {
       list(ok = FALSE, error = conditionMessage(e))
     })
     if (isTRUE(res$ok)) {
-      reread_fixtures()
-      # run_refresh already wrote the snapshot; just bump the invalidator
-      # so the leaderboard output re-reads it.
+      # fixtures_rv is now a reactivePoll — it'll pick up the new pin
+      # automatically within the 30s tick. Force the leaderboard
+      # snapshot to re-read immediately so the post-refresh totals show
+      # up alongside the new scores.
+      invalidate_cache("leaderboard")
       invalidate_leaderboard_snapshot()
     }
     post_message(session, "refreshResult", res)
