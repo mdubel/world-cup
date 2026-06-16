@@ -185,6 +185,18 @@ run_refresh <- function(transport = default_transport,
       -1L
     })
 
+    # Step 5: rebuild the admin-stats snapshot. Pre-computing here turns
+    # the admin tab's open from a ~50-pin-read inline build (~15s) into
+    # a single cached pin read. Same fail-soft pattern as steps 3/4.
+    admin_n <- tryCatch({
+      ast <- rebuild_admin_stats(fixtures_df = fx)
+      as.integer(ast$total_users %||% 0L)
+    }, error = function(e) {
+      warning(sprintf("Admin-stats snapshot rebuild failed: %s",
+                      conditionMessage(e)))
+      -1L
+    })
+
     list(ok = TRUE, n = nrow(fx),
          leaderboard_rows = snapshot_n,
          stats_games = stats_n,

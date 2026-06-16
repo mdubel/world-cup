@@ -205,14 +205,7 @@ server <- function(input, output, session) {
   })
 
   output$game_stats <- render_json({
-    # Feature-flagged to the same WC26_ADMINS allowlist as the Admin tab
-    # while we test — the UI also hides the Stats tab for non-admins, but
-    # the server-side guard means a non-admin can't pull the data even
-    # by poking the websocket directly. Drop this check when we open it
-    # up to the whole office pool.
-    if (!isTRUE(is_admin(user_info))) {
-      return(list(error = "not_authorized"))
-    }
+    # Open to all users — Stats was admin-gated while we tested it.
     # Mirror the leaderboard wiring: re-render when the fixtures poll
     # detects a refresh-job write, and bust the in-process cache so we
     # actually read the fresh stats pin (not the stale cached copy).
@@ -228,7 +221,7 @@ server <- function(input, output, session) {
     needs_rebuild <- is.null(stats) ||
                       length(stats$games) == 0 ||
                       is.null(stats$format_version) ||
-                      isTRUE(stats$format_version < 3L)
+                      isTRUE(stats$format_version < 4L)
     if (needs_rebuild) {
       stats <- tryCatch(
         build_game_stats(
@@ -354,6 +347,16 @@ server <- function(input, output, session) {
   admin_stats_invalidator <- reactiveVal(0L)
 
   observeEvent(input$admin_refresh, ignoreInit = TRUE, {
+    # Force a fresh rebuild — bust the cache, re-iterate every user,
+    # persist the result. Without the explicit rebuild the invalidator
+    # just re-reads the same cached pin.
+    if (isTRUE(is_admin(user_info))) {
+      tryCatch(rebuild_admin_stats(fixtures_df = fixtures_rv()),
+               error = function(e) {
+                 warning(sprintf("Admin refresh rebuild failed: %s",
+                                 conditionMessage(e)))
+               })
+    }
     admin_stats_invalidator(admin_stats_invalidator() + 1L)
   })
 
@@ -362,12 +365,32 @@ server <- function(input, output, session) {
       return(list(error = "not_authorized"))
     }
     admin_stats_invalidator()
-    # Tap into fixtures_rv so a fixtures refresh DOES update the dashboard
-    # (cheap signal — fixtures change rarely).
-    fx <- fixtures_rv()
-    users_df <- read_users()
-    tpicks <- read_tournament_picks()
-    compute_admin_stats(fx, users_df, tpicks)
+    fixtures_rv()
+    # Read from the pre-computed pin (mirrors leaderboard + game_stats).
+    # The previous inline compute did a per-user fan-out of ~50 pin
+    # reads per render — ~15s on first open. Now the refresh job does
+    # that work in the background once per tick and this is one cached
+    # read. The 'Refresh' button below busts the cache + forces a fresh
+    # inline build for admins who want up-to-the-second data.
+    invalidate_cache("admin_stats")
+    stats <- read_admin_stats()
+    if (is.null(stats)) {
+      # Pin not populated yet (fresh deploy before refresh job ran).
+      # Build inline and persist so future opens hit the warm pin.
+      stats <- tryCatch(
+        rebuild_admin_stats(fixtures_df = fixtures_rv()),
+        error = function(e) {
+          warning(sprintf("Inline admin-stats build failed: %s",
+                          conditionMessage(e)))
+          NULL
+        }
+      )
+    }
+    if (is.null(stats)) {
+      list(error = "no_data")
+    } else {
+      stats
+    }
   })
 
   observeEvent(input$manual_refresh, ignoreInit = TRUE, {

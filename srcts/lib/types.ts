@@ -190,6 +190,10 @@ export interface GameStatsLeaderboardRow {
 
 export interface GameStatsEntry {
   match_id: string;
+  /** Raw fixture status — used to render Live / FT badges. */
+  status: string | null;
+  /** True only when status === "FINISHED". Live games skip scorers/standings. */
+  is_final: boolean;
   outcome: MatchOutcome | null;
   picks_by_choice: Record<MatchOutcome, number>;
   pickers_by_choice: Record<MatchOutcome, string[]>;

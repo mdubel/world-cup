@@ -359,6 +359,11 @@ function GameRow({
                 {stageLabel(match.stage)}
               </span>
             )}
+            {!entry.is_final && (
+              <span className='font-display tracking-widest uppercase text-[9px] px-1.5 py-0.5 rounded-sm bg-crimson text-paper animate-pulse'>
+                {entry.status === "PAUSED" ? "Half-time" : "Live"}
+              </span>
+            )}
             {highlightLabel && (
               <span className='font-display tracking-widest uppercase text-[9px] px-1.5 py-0.5 rounded-sm bg-ink text-paper'>
                 {highlightLabel}
@@ -368,10 +373,19 @@ function GameRow({
           <DistributionBar entry={entry} outcome={entry.outcome} match={match} />
         </div>
         <div className='text-right font-mono text-xs whitespace-nowrap'>
-          <div className='font-bold text-ink'>{entry.total_points} pts</div>
-          <div className='text-[10px] text-ink-soft'>
-            {entry.n_scorers}/{entry.total_picks} scored
-          </div>
+          {entry.is_final ? (
+            <>
+              <div className='font-bold text-ink'>{entry.total_points} pts</div>
+              <div className='text-[10px] text-ink-soft'>
+                {entry.n_scorers}/{entry.total_picks} scored
+              </div>
+            </>
+          ) : (
+            <>
+              <div className='font-bold text-ink'>{entry.total_picks}</div>
+              <div className='text-[10px] text-ink-soft'>picks locked</div>
+            </>
+          )}
         </div>
         {expanded ? (
           <ChevronUp className='h-4 w-4 text-ink-soft shrink-0' />
@@ -419,12 +433,19 @@ function GameRow({
           {/* Standings after this match. Tells the story of how the pool's
               positions shifted on the back of this game — much more
               interesting than the redundant scorers list (the picks-by-side
-              column already shows who picked correctly). */}
+              column already shows who picked correctly). Hidden until
+              the match is FINISHED — live games have nothing scored yet. */}
           <div className='space-y-2'>
             <p className='font-display tracking-widest uppercase text-[10px] text-ink-soft'>
               Standings after this game
             </p>
-            {entry.leaderboard_after.length === 0 ? (
+            {!entry.is_final ? (
+              <p className='text-[11px] text-ink-soft italic'>
+                {entry.status === "IN_PLAY" || entry.status === "PAUSED"
+                  ? "Match in progress — standings update once the result is in."
+                  : "Match not finished yet."}
+              </p>
+            ) : entry.leaderboard_after.length === 0 ? (
               <p className='text-[11px] text-ink-soft italic'>
                 No active pickers yet.
               </p>
@@ -467,10 +488,10 @@ function GameRow({
 
 // ------------------------------------------------------------ StatsTab
 
-type SortKey = "chronological" | "obvious" | "surprising" | "split";
+type SortKey = "recent" | "obvious" | "surprising" | "split";
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: "chronological", label: "By date" },
+  { key: "recent", label: "Most recent first" },
   { key: "obvious", label: "Most obvious first" },
   { key: "surprising", label: "Most surprising first" },
   { key: "split", label: "Biggest split first" },
@@ -483,7 +504,7 @@ export function StatsTab() {
     gameStatsLoaded: loaded,
   } = useAppData();
   const tz = useUserTz();
-  const [sort, setSort] = useState<SortKey>("chronological");
+  const [sort, setSort] = useState<SortKey>("recent");
 
   const matchById = useMemo(() => {
     const m = new Map<string, Match>();
@@ -511,12 +532,14 @@ export function StatsTab() {
         );
       case "split":
         return [...entries].sort((a, b) => b.pick_entropy - a.pick_entropy);
-      case "chronological":
+      case "recent":
       default:
         return [...entries].sort((a, b) => {
           const ma = matchById.get(a.match_id);
           const mb = matchById.get(b.match_id);
-          return (ma?.kickoff_utc ?? "").localeCompare(mb?.kickoff_utc ?? "");
+          // Descending kickoff — live + most recent surface at the top
+          // of the list, which is what the user wants on app open.
+          return (mb?.kickoff_utc ?? "").localeCompare(ma?.kickoff_utc ?? "");
         });
     }
   }, [stats, sort, matchById]);
@@ -539,8 +562,8 @@ export function StatsTab() {
   if (!stats || Object.keys(stats.games).length === 0) {
     return (
       <EmptyState
-        title='No finished matches yet'
-        description='Stats appear once the first group game wraps up.'
+        title='No matches played yet'
+        description='Stats appear once the first match kicks off — pick distribution shows up live, and per-game scoring fills in as results come in.'
       />
     );
   }

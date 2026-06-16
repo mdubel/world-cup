@@ -173,3 +173,32 @@ compute_admin_stats <- function(fixtures_df, users_df, tpicks_df) {
     computed_at_utc = iso_utc(now_utc())
   )
 }
+
+# Pin-backed snapshot pattern (mirrors leaderboard + game_stats). The
+# refresh job rebuilds this every tick so opening the admin tab is a
+# single cached pin read instead of a per-user fan-out (~50 pin reads
+# → ~15s of latency at office-pool scale was the symptom we fixed).
+read_admin_stats <- function() {
+  cached_read("admin_stats", function() {
+    pin_read_or(pin_name("admin_stats"), NULL)
+  })
+}
+
+write_admin_stats <- function(stats) {
+  with_lock("admin_stats", verify = FALSE, {
+    pin_write_safe(pin_name("admin_stats"), stats)
+  })
+  invalidate_cache("admin_stats")
+  invisible(stats)
+}
+
+rebuild_admin_stats <- function(fixtures_df = NULL,
+                                 users_df = NULL,
+                                 tpicks_df = NULL) {
+  if (is.null(fixtures_df)) fixtures_df <- read_fixtures()
+  if (is.null(users_df))    users_df    <- read_users()
+  if (is.null(tpicks_df))   tpicks_df   <- read_tournament_picks()
+  stats <- compute_admin_stats(fixtures_df, users_df, tpicks_df)
+  write_admin_stats(stats)
+  stats
+}

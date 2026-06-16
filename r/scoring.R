@@ -219,15 +219,29 @@ build_game_stats <- function(fixtures_df,
     return(empty)
   }
 
-  # Only finished matches with known teams. TBD bracket slots and
-  # postponed/cancelled matches are skipped — no meaningful "who scored"
-  # to surface.
-  finished <- fixtures_df[
-    !is.na(fixtures_df$status) & fixtures_df$status == "FINISHED" &
-    !is.na(fixtures_df$home_team_id) & !is.na(fixtures_df$away_team_id),
+  # We include any LOCKED match (kickoff past or live in progress), not
+  # just FINISHED ones. Locked-but-unfinished games surface in the Stats
+  # tab with their picks distribution visible — outcome / scorers /
+  # post-match standings are skipped because they're not known yet.
+  # TBD bracket slots and cancelled/postponed/awarded matches stay out.
+  now <- now_utc()
+  locked <- fixtures_df[
+    !is.na(fixtures_df$kickoff_utc) &
+      fixtures_df$kickoff_utc <= now &
+      !is.na(fixtures_df$home_team_id) & nzchar(fixtures_df$home_team_id) &
+      !is.na(fixtures_df$away_team_id) & nzchar(fixtures_df$away_team_id) &
+      !(fixtures_df$status %in% c("CANCELLED", "POSTPONED", "AWARDED")),
     , drop = FALSE
   ]
-  if (nrow(finished) == 0) return(empty)
+  if (nrow(locked) == 0) return(empty)
+
+  # `finished` is the subset whose results are real. Used for cumulative
+  # leaderboard snapshots, point timelines, and the superlatives — none
+  # of which make sense for a not-yet-decided match.
+  finished <- locked[
+    !is.na(locked$status) & locked$status == "FINISHED",
+    , drop = FALSE
+  ]
 
   name_for <- setNames(users_df$display_name, users_df$user_id)
 
@@ -251,23 +265,39 @@ build_game_stats <- function(fixtures_df,
     )
   }
   per_game <- setNames(
-    lapply(finished$match_id, function(.) init_bucket()),
-    finished$match_id
+    lapply(locked$match_id, function(.) init_bucket()),
+    locked$match_id
   )
 
   # Per-user, per-match points. Populated alongside the per_game bucket
   # loop below so we can do a chronological cumulative pass after.
   # Named vector: match_id -> integer points for matches the user picked.
+  # Only finished matches contribute (score_user is called against
+  # `finished`, not `locked`).
   user_points_by_match <- setNames(
     lapply(users_df$user_id, function(.) integer(0)),
     users_df$user_id
   )
+
+  # Per-user picks against the full LOCKED set so live games' pick
+  # distributions get into per_game even when score_user (scoped to
+  # finished matches) wouldn't visit them. Lookup by match_id.
+  picks_lookup_by_user <- list()
 
   # One full per-user pass — identical fan-out cost to build_leaderboard,
   # so we get this for free as long as the refresh job calls both.
   for (uid in users_df$user_id) {
     preds <- predictions_loader(uid)
     if (is.null(preds) || nrow(preds) == 0) next
+
+    # Index this user's picks against the locked set so we can populate
+    # pick buckets for live (non-finished) games too. We don't need
+    # advancing_team here — that only matters for scoring, which lives
+    # in the finished-only score_user path below.
+    user_picks <- preds[preds$match_id %in% locked$match_id, , drop = FALSE]
+    if (nrow(user_picks) > 0) {
+      picks_lookup_by_user[[uid]] <- user_picks
+    }
 
     tpick_row <- if (!is.null(tournament_picks_df) &&
                      nrow(tournament_picks_df) > 0) {
@@ -276,11 +306,32 @@ build_game_stats <- function(fixtures_df,
       if (nrow(tp) == 0) NULL else as.list(tp[1, , drop = FALSE])
     } else NULL
 
+    dn <- name_for[[uid]] %||% uid
+
+    # Pass 1: populate pick buckets for ALL locked matches (live + finished)
+    # so live games show pick distributions in the Stats tab too.
+    if (!is.null(picks_lookup_by_user[[uid]])) {
+      up <- picks_lookup_by_user[[uid]]
+      for (i in seq_len(nrow(up))) {
+        m_id <- up$match_id[i]
+        pk <- up$pick[i]
+        bucket <- per_game[[m_id]]
+        if (is.null(bucket)) next
+        if (!is.na(pk) && pk %in% c("HOME", "DRAW", "AWAY")) {
+          bucket$pickers_by_choice[[pk]] <-
+            c(bucket$pickers_by_choice[[pk]], dn)
+        }
+        per_game[[m_id]] <- bucket
+      }
+    }
+
+    # Pass 2: score against finished matches only. Records per-match
+    # points for the cumulative leaderboard pass below AND appends
+    # scorers to per_game buckets. Live games get no scorers (results
+    # not known) — picks are already covered by pass 1.
     s <- score_user(preds, tpick_row, finished)
     per_match <- s$per_match
     if (is.null(per_match) || nrow(per_match) == 0) next
-
-    dn <- name_for[[uid]] %||% uid
 
     for (i in seq_len(nrow(per_match))) {
       m_id <- per_match$match_id[i]
@@ -288,11 +339,6 @@ build_game_stats <- function(fixtures_df,
       if (is.null(bucket)) next
 
       pk <- per_match$pick[i]
-      if (!is.na(pk) && pk %in% c("HOME", "DRAW", "AWAY")) {
-        bucket$pickers_by_choice[[pk]] <-
-          c(bucket$pickers_by_choice[[pk]], dn)
-      }
-
       pts <- per_match$points[i]
       # Record THIS match's points against the user even when 0 — the
       # chronological cumulative pass below needs zero-rows too so the
@@ -377,19 +423,30 @@ build_game_stats <- function(fixtures_df,
     n_scored <- nrow(pg$scorers)
     total_points <- if (n_scored == 0) 0L else sum(pg$scorers$points)
 
+    # Status — read off the locked row, not finished (since a live match
+    # has no row in finished). The frontend uses this to hide scorers /
+    # standings-after / metrics on non-finished entries.
+    fx_row_locked <- locked[locked$match_id == m_id, , drop = FALSE]
+    fx_status <- if (nrow(fx_row_locked) == 0) NA_character_
+                 else fx_row_locked$status[1]
+    is_final <- !is.na(fx_status) && fx_status == "FINISHED"
+
     # Obvious vs surprising: same axis, opposite ends. We use "fraction of
     # pickers who picked the ACTUAL outcome" (HOME / DRAW / AWAY from the
     # fixture's winner column) rather than "fraction who scored anything"
     # — the latter would be ~1.0 on most games because group rules pay
     # 1pt for predicted-winner-actual-draw partial credit. Outcome-based
-    # picks are the cleaner consensus-correctness signal.
-    fx_row <- finished[finished$match_id == m_id, , drop = FALSE]
-    outcome <- if (nrow(fx_row) == 0) NA_character_ else fx_row$winner[1]
+    # picks are the cleaner consensus-correctness signal. Only defined
+    # for FINISHED matches (live games have no winner yet).
+    fx_row <- if (is_final) finished[finished$match_id == m_id, , drop = FALSE]
+              else NULL
+    outcome <- if (is.null(fx_row) || nrow(fx_row) == 0) NA_character_
+               else fx_row$winner[1]
     winners_count <- if (!is.na(outcome) &&
                          outcome %in% c("HOME", "DRAW", "AWAY"))
                        as.integer(counts[[outcome]])
                      else 0L
-    winners_fraction <- if (total_picks == 0) 0
+    winners_fraction <- if (total_picks == 0 || !is_final) 0
                         else winners_count / total_picks
 
     # Pick entropy normalised over the three choice buckets — fully even
@@ -419,6 +476,11 @@ build_game_stats <- function(fixtures_df,
 
     games_out[[m_id]] <- list(
       match_id          = m_id,
+      # Raw fixture status so the frontend can render Live / Paused /
+      # Finished badges without re-deriving from kickoff time. Live games
+      # have outcome=NA and empty scorers/leaderboard_after.
+      status            = if (is.na(fx_status)) NA_character_ else fx_status,
+      is_final          = is_final,
       outcome           = if (is.na(outcome)) NA_character_ else outcome,
       picks_by_choice   = as.list(counts),
       pickers_by_choice = pickers_arr,
@@ -439,15 +501,28 @@ build_game_stats <- function(fixtures_df,
   }
   if (length(games_out) == 0) return(empty)
 
-  # Superlatives. which.max returns the first by name when tied; that's
-  # acceptable for a stats display.
-  wf <- vapply(games_out, function(g) g$winners_fraction, numeric(1))
-  pe <- vapply(games_out, function(g) g$pick_entropy, numeric(1))
-  superlatives <- list(
-    most_obvious    = names(games_out)[which.max(wf)],
-    most_surprising = names(games_out)[which.min(wf)],
-    biggest_split   = names(games_out)[which.max(pe)]
-  )
+  # Superlatives only over FINISHED games — obvious / surprising need an
+  # outcome (still NA for a live game), and biggest_split should also
+  # stay retrospective since live-game splits can shift as more users
+  # pick (irrelevant once kickoff passes, but the user expectation is
+  # 'this was the most-split RESULTED game'). which.max returns the
+  # first by name when tied; that's acceptable for a stats display.
+  finished_game_ids <- names(games_out)[
+    vapply(games_out, function(g) isTRUE(g$is_final), logical(1))
+  ]
+  superlatives <- if (length(finished_game_ids) == 0) {
+    list(most_obvious = NULL, most_surprising = NULL, biggest_split = NULL)
+  } else {
+    wf <- vapply(games_out[finished_game_ids],
+                 function(g) g$winners_fraction, numeric(1))
+    pe <- vapply(games_out[finished_game_ids],
+                 function(g) g$pick_entropy, numeric(1))
+    list(
+      most_obvious    = finished_game_ids[which.max(wf)],
+      most_surprising = finished_game_ids[which.min(wf)],
+      biggest_split   = finished_game_ids[which.max(pe)]
+    )
+  }
 
   # Chronological points timeline for the bar chart. One row per game.
   timeline_rows <- lapply(names(games_out), function(m_id) {
@@ -497,7 +572,9 @@ build_game_stats <- function(fixtures_df,
     # columns to defeat Shiny's auto_unbox.
     # v3 added per-game leaderboard_after snapshots (the post-match
     # standings rendered in the expanded GameRow).
-    format_version = 3L,
+    # v4 added locked-but-not-finished matches to the games map (so live
+    # game pick distributions show up) plus the is_final / status fields.
+    format_version = 4L,
     games          = games_out,
     superlatives   = superlatives,
     points_timeline = timeline_cols,
