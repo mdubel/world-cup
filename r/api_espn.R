@@ -330,8 +330,125 @@ overlay_espn_scores <- function(fixtures_df, espn_resp) {
   structure(fx, overlay_stats = list(matched = matched, updated = updated))
 }
 
+# Build a name → canonical team data lookup from fixture rows that
+# already have team IDs assigned (i.e. football-data has resolved them).
+# Used by inject_espn_team_assignments to translate ESPN's displayName
+# into our own team_id / code / crest so KO slots reuse the SAME team
+# identity that's already attached to that team's group-stage matches.
+build_espn_team_registry <- function(fixtures_df) {
+  reg <- list()
+  if (is.null(fixtures_df) || nrow(fixtures_df) == 0) return(reg)
+  add_team <- function(id, name, code, crest) {
+    if (is.null(id) || is.na(id) || !nzchar(id)) return(invisible())
+    if (is.null(name) || is.na(name) || !nzchar(name)) return(invisible())
+    key <- name
+    Encoding(key) <- "UTF-8"
+    if (is.null(reg[[key]])) {
+      reg[[key]] <<- list(
+        team_id    = id,
+        team_name  = name,
+        team_code  = if (is.na(code)) NA_character_ else code,
+        team_crest = if (is.na(crest)) NA_character_ else crest
+      )
+    }
+  }
+  for (i in seq_len(nrow(fixtures_df))) {
+    add_team(fixtures_df$home_team_id[i], fixtures_df$home_team_name[i],
+             fixtures_df$home_team_code[i], fixtures_df$home_team_crest[i])
+    add_team(fixtures_df$away_team_id[i], fixtures_df$away_team_name[i],
+             fixtures_df$away_team_code[i], fixtures_df$away_team_crest[i])
+  }
+  reg
+}
+
+# Inject KO team assignments from ESPN into TBD-team fixtures.
+#
+# football-data tends to leave KO fixtures' home_team_id/away_team_id NULL
+# until well after the previous round concludes. ESPN's scoreboard endpoint
+# fills the slots much sooner (right after the deciding group match
+# finishes) — the same data Google's bracket card surfaces. Slots ESPN
+# hasn't decided either come back as placeholder strings like "Group C
+# Winner" or "Third Place Group A/B/C/D/F", which we ignore (lookup
+# against our team registry fails → leave TBD).
+#
+# Match key is `kickoff_utc` — team names are TBD on our side so the
+# normal name-pair join can't work. We only touch fixture rows whose
+# home OR away team_id is NA, so we never overwrite a known assignment.
+inject_espn_team_assignments <- function(fixtures_df, espn_resp) {
+  if (is.null(fixtures_df) || nrow(fixtures_df) == 0) return(fixtures_df)
+  events <- espn_resp$events %||% list()
+  if (length(events) == 0) return(fixtures_df)
+
+  registry <- build_espn_team_registry(fixtures_df)
+  fx <- fixtures_df
+  injected <- 0L
+
+  for (ev in events) {
+    comp <- ev$competitions[[1]] %||% list()
+    comps <- comp$competitors %||% list()
+    if (length(comps) < 2) next
+
+    home <- Find(function(x) identical(x$homeAway, "home"), comps)
+    away <- Find(function(x) identical(x$homeAway, "away"), comps)
+    if (is.null(home) || is.null(away)) next
+
+    espn_kickoff <- parse_espn_date(comp$date %||% ev$date)
+    if (is.na(espn_kickoff)) next
+
+    # Find a fixture row at this kickoff time that still has at least one
+    # TBD side. 1-hour tolerance covers small reschedules.
+    home_tbd <- is.na(fx$home_team_id) | !nzchar(fx$home_team_id %||% "")
+    away_tbd <- is.na(fx$away_team_id) | !nzchar(fx$away_team_id %||% "")
+    candidates <- which(
+      !is.na(fx$kickoff_utc) &
+        abs(as.numeric(difftime(fx$kickoff_utc, espn_kickoff,
+                                 units = "hours"))) < 1 &
+        (home_tbd | away_tbd)
+    )
+    if (length(candidates) != 1) next
+    i <- candidates[1]
+
+    write_side <- function(fx, side, espn_comp) {
+      id_col    <- paste0(side, "_team_id")
+      name_col  <- paste0(side, "_team_name")
+      code_col  <- paste0(side, "_team_code")
+      crest_col <- paste0(side, "_team_crest")
+      # Already assigned? Don't clobber.
+      if (!is.na(fx[[id_col]][i]) && nzchar(fx[[id_col]][i])) return(fx)
+
+      espn_name_raw <- espn_comp$team$displayName %||% ""
+      if (!nzchar(espn_name_raw)) return(fx)
+      espn_name <- normalise_espn_team_name(espn_name_raw)
+      if (is.na(espn_name)) return(fx)
+
+      td <- registry[[espn_name]]
+      if (is.null(td)) {
+        # Placeholder string like "Group C Winner" — not a real team yet.
+        return(fx)
+      }
+
+      fx[[id_col]][i]    <- td$team_id
+      fx[[name_col]][i]  <- td$team_name
+      fx[[code_col]][i]  <- td$team_code
+      fx[[crest_col]][i] <- td$team_crest
+      fx$last_api_update[i] <- now_utc()
+      injected <<- injected + 1L
+      fx
+    }
+
+    fx <- write_side(fx, "home", home)
+    fx <- write_side(fx, "away", away)
+  }
+
+  attr(fx, "team_inject_count") <- injected
+  fx
+}
+
 # Convenience: pull from ESPN over the WC window inferred from the fixtures
-# df, and overlay. Returns the new fixtures df (with attr overlay_stats).
+# df, then inject team assignments AND overlay scores. Team injection
+# runs first so the subsequent score-overlay's name-pair match can hit
+# the newly-resolved rows (in case ESPN also has a score for a slot it
+# just assigned). Returns the new fixtures df (with attr overlay_stats).
 apply_espn_overlay <- function(fixtures_df,
                                transport = espn_default_transport) {
   if (is.null(fixtures_df) || nrow(fixtures_df) == 0) return(fixtures_df)
@@ -339,5 +456,12 @@ apply_espn_overlay <- function(fixtures_df,
   dates <- dates[!is.na(dates)]
   if (length(dates) == 0) return(fixtures_df)
   resp <- fetch_espn_scoreboard(min(dates), max(dates), transport = transport)
-  overlay_espn_scores(fixtures_df, resp)
+  fx2 <- inject_espn_team_assignments(fixtures_df, resp)
+  result <- overlay_espn_scores(fx2, resp)
+  # Roll team-injection count into the overlay_stats attr so refresh
+  # logging surfaces it on the run line.
+  ostats <- attr(result, "overlay_stats") %||% list()
+  ostats$team_injects <- as.integer(attr(fx2, "team_inject_count") %||% 0L)
+  attr(result, "overlay_stats") <- ostats
+  result
 }

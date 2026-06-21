@@ -53,17 +53,42 @@ is_live_window <- function(fx, now) {
   any(in_window, na.rm = TRUE)
 }
 
-# Decide whether to run the full refresh on this tick.
+# Returns TRUE if there's a TBD-team KO fixture kicking off in the next
+# PRE_KO_LOOKAHEAD_DAYS days. We use this to keep the refresh job firing
+# during the group-stage-end → KO-start window so ESPN's earlier team
+# assignments land in our fixtures pin within minutes instead of waiting
+# for the first KO match's live window to open.
+PRE_KO_LOOKAHEAD_DAYS <- 14L
+has_pending_tbd_ko <- function(fx, now) {
+  if (is.null(fx) || nrow(fx) == 0) return(FALSE)
+  is_ko <- is_knockout_stage(fx$stage)
+  tbd <- is.na(fx$home_team_id) | !nzchar(fx$home_team_id %||% "") |
+         is.na(fx$away_team_id) | !nzchar(fx$away_team_id %||% "")
+  upcoming <- !is.na(fx$kickoff_utc) &
+              fx$kickoff_utc >= now &
+              fx$kickoff_utc <= now + PRE_KO_LOOKAHEAD_DAYS * 24 * 3600
+  any(is_ko & tbd & upcoming, na.rm = TRUE)
+}
+
+# Decide whether to run the refresh on this tick AND in what mode. Modes:
+#   "full"     — live or live-imminent match: do football-data + ESPN +
+#                fixtures write + leaderboard + game_stats + admin_stats
+#   "pre_ko"   — TBD-team KO match coming up: do football-data (throttled)
+#                + ESPN (incl. team-assignment injection) + fixtures write,
+#                SKIP per-user fan-outs since assignments don't affect
+#                scoring
+#   FALSE      — nothing to do, exit silently
 should_run_refresh <- function(fx, now = now_utc()) {
-  # First-ever refresh on a fresh deploy: no fixtures pin yet, must
-  # bootstrap regardless of the live-window check.
   if (is.null(fx) || nrow(fx) == 0) {
-    return(list(run = TRUE, reason = "bootstrap"))
+    return(list(run = TRUE, mode = "full", reason = "bootstrap"))
   }
   if (is_live_window(fx, now)) {
-    return(list(run = TRUE, reason = "in_live_window"))
+    return(list(run = TRUE, mode = "full", reason = "in_live_window"))
   }
-  list(run = FALSE, reason = "no_live_match")
+  if (has_pending_tbd_ko(fx, now)) {
+    return(list(run = TRUE, mode = "pre_ko", reason = "pending_tbd_ko"))
+  }
+  list(run = FALSE, mode = NA_character_, reason = "no_live_match")
 }
 
 empty_refresh_log_df <- function() {
@@ -160,6 +185,30 @@ run_refresh <- function(transport = default_transport,
                           error  = overlay_outcome$error)
 
     write_fixtures(fx)
+
+    # In pre_ko mode (no live match, but TBD-team KO fixtures imminent)
+    # we skip the per-user fan-out steps — leaderboard / game_stats /
+    # admin_stats only change when SCORES change, and team-assignment
+    # injection from ESPN doesn't score anything. Saves 50+ pin reads
+    # per tick during the multi-day pre-KO TBD window.
+    if (!force && isTRUE(decision$mode == "pre_ko")) {
+      ov <- overlay_stats %||% list()
+      ti <- as.integer(attr(fx, "overlay_stats")$team_injects %||% 0L)
+      message(sprintf(
+        "[refresh %s] OK (pre_ko) — %d fixtures, FD=%s, ESPN matched=%d updated=%d injects=%d",
+        iso_utc(now_utc()), nrow(fx),
+        if (fetch_fd) "fetched" else "throttled",
+        as.integer(ov$matched %||% 0L),
+        as.integer(ov$updated %||% 0L),
+        ti
+      ))
+      return(list(ok = TRUE, n = nrow(fx),
+                  leaderboard_rows = 0L, stats_games = 0L,
+                  team_injects = ti,
+                  espn_overlay = overlay_stats,
+                  football_data_fetched = fetch_fd,
+                  mode = "pre_ko"))
+    }
 
     # Step 3: rebuild the leaderboard snapshot.
     snapshot_n <- tryCatch({

@@ -1,0 +1,77 @@
+<h2 class="sr-only">Line chart of group-stage points won as a percentage of points available, per FIFA confederation, across World Cups from 1998 to the present. The latest tournament may be in progress with partial data.</h2>
+
+<div style="display:flex; flex-wrap:wrap; gap:10px; margin:0.5rem 0 1rem; font-size:13px;" id="legend"></div>
+
+<div style="position:relative; width:100%; height:380px;">
+  <canvas id="fedChart" role="img" aria-label="Trend of each confederation's share of available group-stage points over time. CONMEBOL and UEFA lead historically; later tournaments narrow the gap.">Confederation share of available group-stage points by World Cup.</canvas>
+</div>
+
+<p style="font-size:12px; color:var(--color-text-tertiary); margin:0.75rem 0 0; line-height:1.6;">
+% = group-stage points won &divide; (3 &times; games played). Each team plays 3 group games when complete (max 9 pts). A year tagged <strong style="font-weight:500; color:var(--color-text-secondary);">in progress</strong> is a partial, noisy snapshot. Click a legend chip to toggle a line.
+</p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+(function(){
+  var DATA = /*__CHART_DATA__*/{};
+  var labels = DATA.labels;
+  var gp = DATA.gp_avg;            // typical games/team per year (3 = complete)
+  var pct = DATA.pct, teams = DATA.teams, pts = DATA.pts;
+
+  var style = {
+    CONMEBOL:{c:"#1D9E75", dash:[],   pt:"circle"},
+    UEFA:    {c:"#378ADD", dash:[],   pt:"rect"},
+    CAF:     {c:"#D85A30", dash:[6,4],pt:"triangle"},
+    AFC:     {c:"#7F77DD", dash:[6,4],pt:"rectRot"},
+    CONCACAF:{c:"#D4537E", dash:[2,3],pt:"star"},
+    OFC:     {c:"#888780", dash:[2,3],pt:"crossRot"}
+  };
+  var order = ["CONMEBOL","UEFA","CAF","AFC","CONCACAF","OFC"];
+
+  var datasets = order.map(function(k){ return {
+    label:k, data:pct[k], borderColor:style[k].c, backgroundColor:style[k].c,
+    borderDash:style[k].dash, pointStyle:style[k].pt, pointRadius:5, pointHoverRadius:7,
+    borderWidth:k==="OFC"?2:2.5, spanGaps:false, tension:0.25,
+    _teams:teams[k], _pts:pts[k]
+  };});
+
+  var isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  var grid = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)';
+  var tick = isDark ? '#b4b2a9' : '#5f5e5a';
+
+  new Chart(document.getElementById('fedChart').getContext('2d'), {
+    type:'line',
+    data:{labels:labels, datasets:datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'nearest', intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{
+          title:function(items){ var l=labels[items[0].dataIndex]; return l[0]+' — '+l[1]; },
+          label:function(it){
+            var d=it.dataset, i=it.dataIndex;
+            if(d.data[i]==null) return d.label+': did not qualify';
+            var tail = gp[i]<3 ? ' · after '+gp[i]+' game/team' : '';
+            return d.label+': '+d.data[i]+'%  ('+d._pts[i]+' pts / '+d._teams[i]+' teams)'+tail;
+          }
+        }}
+      },
+      scales:{
+        y:{min:0, max:80, title:{display:true, text:'% of available group points', color:tick},
+           grid:{color:grid}, ticks:{color:tick, callback:function(v){return v+'%';}}},
+        x:{grid:{color:grid}, ticks:{color:tick, autoSkip:false}}
+      }
+    }
+  });
+
+  var leg = document.getElementById('legend');
+  order.forEach(function(k,idx){
+    var el=document.createElement('span');
+    el.style.cssText='display:flex; align-items:center; gap:6px; cursor:pointer; padding:3px 8px; border-radius:8px; border:0.5px solid var(--color-border-tertiary); user-select:none;';
+    el.innerHTML='<span style="width:14px; height:3px; background:'+style[k].c+'; display:inline-block; border-radius:2px;"></span><span style="color:var(--color-text-primary);">'+k+'</span>';
+    el.onclick=function(){ var ch=Chart.getChart('fedChart'); var meta=ch.getDatasetMeta(idx); meta.hidden = meta.hidden===null ? !ch.data.datasets[idx].hidden : !meta.hidden; el.style.opacity = meta.hidden?0.4:1; ch.update(); };
+    leg.appendChild(el);
+  });
+})();
+</script>
