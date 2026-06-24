@@ -42,43 +42,43 @@ interface KOExample {
 
 const KO_EXAMPLES: KOExample[] = [
   {
-    pick: "Home wins regulation",
-    outcome: "Home wins in 90 min",
+    pick: "Home wins",
+    outcome: "Home wins (regulation or ET)",
     base: 3,
     bonus: 1,
-    why: "Exact regulation outcome + Home advances",
+    why: "Correct winner + Home advances",
   },
   {
-    pick: "Home wins regulation",
+    pick: "Home wins",
     outcome: "Draw → Home wins on penalties",
     base: 1,
     bonus: 1,
-    why: "Wrong regulation outcome, but you correctly named the team that advanced",
+    why: "Match went to PKs (not an outright win), but you correctly named the team that advanced",
   },
   {
-    pick: "Home wins regulation",
+    pick: "Home wins",
     outcome: "Draw → Away wins on penalties",
     base: 1,
     bonus: 0,
-    why: "Wrong regulation outcome, wrong advancing team",
+    why: "Match went to PKs, wrong advancing team",
   },
   {
     pick: "Draw → PKs, Away advances",
     outcome: "Draw → Away wins on penalties",
     base: 3,
     bonus: 1,
-    why: "Exact regulation + Away advances",
+    why: "Correctly called the match going to PKs + right advancing team",
   },
   {
     pick: "Draw → PKs, Home advances",
     outcome: "Draw → Away wins on penalties",
     base: 3,
     bonus: 0,
-    why: "Exact regulation, but the wrong PK winner",
+    why: "Correctly called PKs, but the wrong PK winner",
   },
   {
-    pick: "Home wins regulation",
-    outcome: "Away wins in 90 min",
+    pick: "Home wins",
+    outcome: "Away wins (regulation or ET)",
     base: 0,
     bonus: 0,
     why: "Wrong winner",
@@ -241,10 +241,11 @@ export function RulesTab() {
         <CardContent className='p-5'>
           <SectionHeading number='03' title='Knockout-stage scoring' />
           <p className='text-sm text-ink-soft mb-3'>
-            For every knockout match you pick the result <em>after</em> 90 +
-            extra time (Home wins, Away wins, or Draw → penalties). If you pick{" "}
-            <strong>Draw</strong>, you also name which team you think advances
-            on penalties.
+            For every knockout match you pick the result at the end of play
+            — either someone wins outright (in regulation OR extra time,
+            scored the same way) or the match is tied through ET and goes
+            to penalties. If you pick <strong>Draw → PKs</strong>, you also
+            name which team you think advances on penalties.
           </p>
 
           <ol className='text-sm text-ink space-y-2 pl-1 mb-4'>
@@ -253,15 +254,15 @@ export function RulesTab() {
                 Base
               </span>
               Same <strong>3 / 1 / 0</strong> scoring as the group stage, on
-              the regulation + extra-time outcome.
+              the result at the end of extra time (an ET winner counts the
+              same as a regulation winner — penalties are a separate case).
             </li>
             <li>
               <span className='font-display tracking-wider uppercase text-mustard text-xs mr-2'>
                 Bonus
               </span>
               <strong>+1 point</strong> if the team you named to advance
-              actually advanced — whether through regulation, extra time, or
-              penalties.
+              actually advanced — whether outright or via penalties.
             </li>
           </ol>
 
