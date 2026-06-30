@@ -186,29 +186,16 @@ run_refresh <- function(transport = default_transport,
 
     write_fixtures(fx)
 
-    # In pre_ko mode (no live match, but TBD-team KO fixtures imminent)
-    # we skip the per-user fan-out steps — leaderboard / game_stats /
-    # admin_stats only change when SCORES change, and team-assignment
-    # injection from ESPN doesn't score anything. Saves 50+ pin reads
-    # per tick during the multi-day pre-KO TBD window.
-    if (!force && isTRUE(decision$mode == "pre_ko")) {
-      ov <- overlay_stats %||% list()
-      ti <- as.integer(attr(fx, "overlay_stats")$team_injects %||% 0L)
-      message(sprintf(
-        "[refresh %s] OK (pre_ko) — %d fixtures, FD=%s, ESPN matched=%d updated=%d injects=%d",
-        iso_utc(now_utc()), nrow(fx),
-        if (fetch_fd) "fetched" else "throttled",
-        as.integer(ov$matched %||% 0L),
-        as.integer(ov$updated %||% 0L),
-        ti
-      ))
-      return(list(ok = TRUE, n = nrow(fx),
-                  leaderboard_rows = 0L, stats_games = 0L,
-                  team_injects = ti,
-                  espn_overlay = overlay_stats,
-                  football_data_fetched = fetch_fd,
-                  mode = "pre_ko"))
-    }
+    # We used to skip the per-user fan-out rebuilds (leaderboard /
+    # game_stats / admin_stats) in pre_ko mode under the assumption that
+    # only team-assignment injection happens — no scoring changes. That
+    # was wrong: e.g. a PK match's winner field corrected from AWAY to
+    # DRAW changes the scoring for everyone who picked that match, but
+    # the user's predictions pin doesn't move. The fix needs the
+    # leaderboard + game_stats rebuilds to actually run.
+    # At office-pool scale (~25 users × 2 pin reads each) the fan-out
+    # cost is ~50 cheap pin reads per minute during the pre-KO window —
+    # well below anything that would matter on Connect.
 
     # Step 3: rebuild the leaderboard snapshot.
     snapshot_n <- tryCatch({
