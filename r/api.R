@@ -80,6 +80,17 @@ api_match_to_row <- function(m) {
   home_pk <- as.integer(null_to_na(pk$home, "integer"))
   away_pk <- as.integer(null_to_na(pk$away, "integer"))
 
+  # football-data sets score.winner = HOME_TEAM/AWAY_TEAM for PK-decided
+  # matches, naming the team that ADVANCED via the shootout. For our
+  # scoring rules the regulation+ET outcome of a PK match is DRAW — the
+  # PK winner is tracked separately in pk_winner. Override the wire
+  # value here so the rest of the pipeline sees the correct match
+  # outcome. (Identical issue exists in api_espn.R; both sources need
+  # the same correction.)
+  duration <- as.character(null_to_na(score$duration))
+  went_to_pks <- !is.na(duration) && identical(duration, "PENALTY_SHOOTOUT")
+  winner_corrected <- if (went_to_pks) "DRAW" else normalize_winner(score$winner)
+
   data.frame(
     match_id = as.character(m$id),
     stage = as.character(null_to_na(m$stage)),
@@ -100,7 +111,7 @@ api_match_to_row <- function(m) {
     away_score_et = as.integer(null_to_na(et$away, "integer")),
     home_score_pk = home_pk,
     away_score_pk = away_pk,
-    winner = normalize_winner(score$winner),
+    winner = winner_corrected,
     pk_winner = derive_pk_winner(home_pk, away_pk),
     last_api_update = parse_iso_utc(m$lastUpdated),
     stringsAsFactors = FALSE

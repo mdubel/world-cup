@@ -82,8 +82,14 @@ export function PredictionPicker({
     if (pick === "HOME") onSubmit("HOME", "HOME");
     else if (pick === "AWAY") onSubmit("AWAY", "AWAY");
     else {
-      const adv = currentAdvancing ?? "HOME";
-      onSubmit("DRAW", adv);
+      // Preserve an existing advancing pick when re-clicking DRAW, but
+      // do NOT auto-default to HOME when the user picks DRAW for the
+      // first time — that used to highlight one side automatically and
+      // the user could miss that it was already submitted on their
+      // behalf. With null, the advancing sub-row appears with neither
+      // side selected; the user has to explicitly click one to claim
+      // the +1 bonus.
+      onSubmit("DRAW", currentAdvancing ?? null);
     }
   };
 
@@ -169,8 +175,17 @@ export function PredictionPicker({
       </div>
       {showAdvancingPicker && (
         <div className='flex flex-col gap-2 pl-1'>
-          <span className='font-display text-xs tracking-widest uppercase text-ink-soft'>
-            Who advances on penalties?
+          <span
+            className={cn(
+              "font-display text-xs tracking-widest uppercase",
+              currentAdvancing === null
+                ? "text-crimson"
+                : "text-ink-soft"
+            )}
+          >
+            {currentAdvancing === null
+              ? "Pick one — who advances on penalties?"
+              : "Who advances on penalties?"}
           </span>
           <div className='flex gap-2'>
             <button

@@ -170,22 +170,12 @@ espn_event_to_overlay <- function(ev) {
   home_ft <- if (match_started) parse_score(home$score) else NA_integer_
   away_ft <- if (match_started) parse_score(away$score) else NA_integer_
 
-  # Winner: prefer ESPN's explicit "winner" flag (works for PK results too),
-  # otherwise compute from scores. NA when the match hasn't decided yet.
-  winner <- if (match_started && isTRUE(home$winner)) "HOME"
-            else if (match_started && isTRUE(away$winner)) "AWAY"
-            else if (match_started && !is.na(home_ft) && !is.na(away_ft)) {
-              if (home_ft > away_ft) "HOME"
-              else if (away_ft > home_ft) "AWAY"
-              # Only call it a DRAW once the match is actually FINISHED;
-              # otherwise mid-match 0–0 would prematurely show DRAW.
-              else if (identical(state, "post") || isTRUE(completed)) "DRAW"
-              else NA_character_
-            } else NA_character_
-
-  # Penalties + ET classification from status. We treat any status that
-  # implies extra time happened (or is happening) as "had_et"; the PK
-  # shootout score is a separate signal on the competitor object.
+  # Penalties + ET classification from status — needed BEFORE the winner
+  # logic below, because for PK-decided matches the regulation+ET outcome
+  # is DRAW regardless of which competitor ESPN flagged as "winner".
+  # (ESPN sets competitor.winner=true on the team that advances, including
+  # via PKs; for our scoring rules that's the wrong signal — the PK
+  # advance is captured separately in pk_winner.)
   ET_OR_PK_STATUSES <- c(
     "STATUS_EXTRA_TIME",
     "STATUS_END_EXTRA_TIME",
@@ -203,9 +193,32 @@ espn_event_to_overlay <- function(ev) {
             identical(status_name, "STATUS_SHOOTOUT")
   had_et <- status_name %in% ET_OR_PK_STATUSES
 
+  # PK winner: for PK-decided matches, ESPN sets competitor.winner=true
+  # on the team that advanced; that's the PK winner in our terminology.
+  # (Older ESPN responses also have competitor.advance — keep it as a
+  # secondary signal in case `winner` is missing.)
   pk_winner <- if (is_pen) {
-    if (isTRUE(home$advance)) "HOME"
-    else if (isTRUE(away$advance)) "AWAY"
+    if (isTRUE(home$advance) || isTRUE(home$winner)) "HOME"
+    else if (isTRUE(away$advance) || isTRUE(away$winner)) "AWAY"
+    else NA_character_
+  } else NA_character_
+
+  # Match winner: the regulation+ET outcome. For PK-decided matches this
+  # is DRAW (someone advancing on PKs doesn't change the fact that the
+  # match itself was a draw at the end of ET). For everything else,
+  # prefer ESPN's explicit winner flag, fall back to scores.
+  winner <- if (is_pen) {
+    "DRAW"
+  } else if (match_started && isTRUE(home$winner)) {
+    "HOME"
+  } else if (match_started && isTRUE(away$winner)) {
+    "AWAY"
+  } else if (match_started && !is.na(home_ft) && !is.na(away_ft)) {
+    if (home_ft > away_ft) "HOME"
+    else if (away_ft > home_ft) "AWAY"
+    # Only call it a DRAW once the match is actually FINISHED;
+    # otherwise mid-match 0–0 would prematurely show DRAW.
+    else if (identical(state, "post") || isTRUE(completed)) "DRAW"
     else NA_character_
   } else NA_character_
 
