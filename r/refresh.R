@@ -39,8 +39,18 @@ write_last_football_data_at <- function(t) {
 is_live_window <- function(fx, now) {
   if (is.null(fx) || nrow(fx) == 0) return(FALSE)
   # In-progress matches keep the window open regardless of clock — handles
-  # long stoppages, suspended-and-resumed, etc.
-  if (any(fx$status %in% c("IN_PLAY", "PAUSED"), na.rm = TRUE)) return(TRUE)
+  # long stoppages, suspended-and-resumed, and football-data's various
+  # transitional labels. "LIVE" is one they use during ET (observed on
+  # the WC 2026 Final — Spain vs Argentina — where the pin captured
+  # status=LIVE, our gate didn't recognise it, and by the time football-
+  # data flipped to FINISHED 25 min later the KO-window clock had
+  # expired). Include EXTRA_TIME/PENALTY as safety belts — cheap to
+  # enumerate, expensive to miss.
+  in_progress_statuses <- c(
+    "IN_PLAY", "PAUSED", "LIVE",
+    "EXTRA_TIME", "PENALTY_SHOOTOUT"
+  )
+  if (any(fx$status %in% in_progress_statuses, na.rm = TRUE)) return(TRUE)
   is_ko <- is_knockout_stage(fx$stage)
   window_min <- ifelse(is_ko, KNOCKOUT_LIVE_WINDOW_MIN, GROUP_LIVE_WINDOW_MIN)
   terminal <- fx$status %in% c("FINISHED", "CANCELLED", "POSTPONED", "AWARDED")
