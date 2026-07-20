@@ -48,12 +48,12 @@ export function LeaderboardTable({
               <tr className='border-b border-paper-edge text-left text-[10px] uppercase tracking-widest text-ink-soft'>
                 <th className='py-2 px-3 w-10'>#</th>
                 <th className='py-2 px-3'>User</th>
-                <th className='py-2 px-3 hidden md:table-cell'>Champion pick</th>
-                <th className='py-2 px-2 text-right hidden sm:table-cell'>Group</th>
-                <th className='py-2 px-2 text-right hidden sm:table-cell'>KO</th>
-                <th className='py-2 px-2 text-right hidden sm:table-cell'>Winner</th>
+                <th className='py-2 px-3'>Champion pick</th>
+                <th className='py-2 px-2 text-right'>Group</th>
+                <th className='py-2 px-2 text-right'>KO</th>
+                <th className='py-2 px-2 text-right'>Winner</th>
                 <th
-                  className='py-2 px-2 text-right hidden lg:table-cell'
+                  className='py-2 px-2 text-right'
                   title='Exact predictions (max-points hits) — used as the tiebreaker'
                 >
                   Exact
@@ -92,7 +92,7 @@ export function LeaderboardTable({
                         )}
                       </div>
                     </td>
-                    <td className='py-2 px-3 hidden md:table-cell'>
+                    <td className='py-2 px-3'>
                       {team ? (
                         <div className='flex items-center gap-2 min-w-0'>
                           <TeamFlag
@@ -115,16 +115,16 @@ export function LeaderboardTable({
                         </span>
                       )}
                     </td>
-                    <td className='py-2 px-2 text-right font-mono hidden sm:table-cell'>
+                    <td className='py-2 px-2 text-right font-mono'>
                       {maskedValue(masked, row.group_pts)}
                     </td>
-                    <td className='py-2 px-2 text-right font-mono hidden sm:table-cell'>
+                    <td className='py-2 px-2 text-right font-mono'>
                       {maskedValue(masked, row.knockout_pts)}
                     </td>
-                    <td className='py-2 px-2 text-right font-mono hidden sm:table-cell'>
+                    <td className='py-2 px-2 text-right font-mono'>
                       {maskedValue(masked, row.tournament_pts)}
                     </td>
-                    <td className='py-2 px-2 text-right font-mono hidden lg:table-cell'>
+                    <td className='py-2 px-2 text-right font-mono'>
                       {maskedValue(masked, row.exact_predictions)}
                     </td>
                     <td className='py-2 px-3 text-right font-mono font-bold'>
